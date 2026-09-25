@@ -97,6 +97,28 @@
         let isCooldown = false; 
         let displayTimeout = null; 
 
+        // --- VOICE SETUP LOGIC ---
+        let femaleVoice = null;
+        function loadVoices() {
+            const voices = window.speechSynthesis.getVoices();
+            // Hunt for the best natural female voices installed on the device
+            femaleVoice = voices.find(v => 
+                v.name.includes('Female') || 
+                v.name.includes('Samantha') || // Mac/iOS
+                v.name.includes('Zira') ||     // Windows
+                v.name.includes('Jenny') ||    // Windows Natural
+                v.name.includes('Karen') ||    // Mac/iOS
+                v.name.includes('Victoria')
+            );
+            // Fallback to first English voice if specific female names aren't found
+            if (!femaleVoice) {
+                femaleVoice = voices.find(v => v.lang.startsWith('en-'));
+            }
+        }
+        // Browsers load voices asynchronously, so we must listen for them to be ready
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        // -------------------------
+
         function syncData() {
             const status = document.getElementById('sync-status');
             const progressCont = document.getElementById('progress-container');
@@ -139,6 +161,9 @@
             isCooldown = true;
             html5QrcodeScanner.pause();
 
+            // Make sure voices are loaded just in case they missed the event
+            if (!femaleVoice) loadVoices(); 
+
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
             const student = localData[decodedText];
 
@@ -155,7 +180,6 @@
                 const now = new Date();
                 const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-                // --- AUDIO GREETING LOGIC ---
                 const hour = now.getHours();
                 let greeting = "Good evening";
                 if (hour < 12) {
@@ -164,11 +188,17 @@
                     greeting = "Good afternoon";
                 }
 
-                // Stop any audio currently playing so it doesn't overlap on fast scans
+                // Stop any audio currently playing
                 window.speechSynthesis.cancel();
                 
-                // Speak the greeting and the name
+                // --- AUDIO SPEAKING LOGIC ---
                 const speech = new SpeechSynthesisUtterance(greeting + ", " + student.name);
+                if (femaleVoice) {
+                    speech.voice = femaleVoice;
+                }
+                // Tweak pitch and speed to sound more human
+                speech.rate = 0.9;  // Slightly slower 
+                speech.pitch = 1.1; // Slightly higher pitch
                 window.speechSynthesis.speak(speech);
                 // ----------------------------
 
