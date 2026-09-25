@@ -5,89 +5,157 @@
     <title>Attendance Scanner</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
+        :root {
+            --fb-blue: #1877F2;
+            --fb-bg: #F0F2F5;
+            --fb-text: #050505;
+            --fb-text-muted: #65676B;
+            --fb-card: #FFFFFF;
+        }
+
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            text-align: center; 
-            margin-top: 20px; 
-            background: #f0f2f5;
-        }
-        h1 { color: #333; }
-        
-        #reader { width: 400px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-        
-        .sync-btn { 
-            background: #28a745; color: white; padding: 12px 24px; 
-            border: none; border-radius: 5px; cursor: pointer; 
-            margin-bottom: 10px; font-size: 16px; font-weight: bold;
-            transition: background 0.3s;
-        }
-        .sync-btn:hover { background: #218838; }
-        
-        #progress-container {
-            width: 80%; max-width: 400px; margin: 10px auto;
-            background: #e9ecef; border-radius: 8px; overflow: hidden;
-            display: none; height: 10px;
-        }
-        #progress-bar {
-            width: 0%; height: 100%; background: #007bff;
-            transition: width 0.4s ease;
+            background: var(--fb-bg);
+            color: var(--fb-text);
+            margin: 0; padding: 0;
         }
 
+        /* Top Facebook-style Navbar */
+        .navbar {
+            background: var(--fb-card);
+            height: 56px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            display: flex; align-items: center; padding: 0 16px;
+            font-size: 20px; font-weight: 700; color: var(--fb-blue);
+        }
+        
+        .fb-logo {
+            background: var(--fb-blue); color: white;
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; margin-right: 10px;
+        }
+
+        /* Subtle Top Loading Bar */
+        #fb-progress { 
+            position: fixed; top: 0; left: 0; height: 3px; 
+            background: #42b72a; width: 0%; transition: width 0.3s; z-index: 1000; 
+        }
+
+        .main-container { max-width: 500px; margin: 30px auto; text-align: center; }
+
+        /* Camera Indicator (replaces the video feed) */
+        .cam-indicator {
+            display: inline-flex; align-items: center;
+            background: var(--fb-card); padding: 8px 16px;
+            border-radius: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            font-size: 14px; font-weight: 600; color: var(--fb-text-muted);
+            margin-bottom: 20px;
+        }
+        
+        .pulse-dot {
+            width: 10px; height: 10px; background: #31A24C;
+            border-radius: 50%; margin-right: 8px;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(49, 162, 76, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0); }
+        }
+
+        /* Main Result Card (Facebook Post Style) */
         #result-card { 
-            display: none; 
-            width: 90%; max-width: 450px; 
-            margin: 20px auto; 
-            background: #fff; 
-            padding: 20px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        }
-        
-        .pop-in {
-            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            display: none; background: var(--fb-card);
+            border-radius: 8px; padding: 16px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            margin: 0 15px;
         }
 
+        .pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         @keyframes popIn {
-            0% { opacity: 0; transform: scale(0.8) translateY(20px); }
-            100% { opacity: 1; transform: scale(1) translateY(0); }
+            0% { opacity: 0; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
         }
 
-        #scan-time { font-size: 18px; color: #666; font-weight: bold; margin-bottom: 15px; }
+        #scan-time { font-size: 14px; color: var(--fb-text-muted); font-weight: 600; margin-bottom: 15px; text-align: left; }
+        #student-photo { width: 100%; max-width: 400px; height: 350px; border-radius: 8px; object-fit: cover; border: 1px solid #ddd; }
+        #student-name { font-size: 24px; font-weight: 700; color: var(--fb-text); margin: 15px 0 5px 0; text-align: left;}
+        #student-id { font-size: 15px; color: var(--fb-text-muted); text-align: left;}
+
+        /* Bottom Recent Scans (ID Cards) */
+        .recent-section { margin-top: 30px; text-align: left; padding: 0 15px; }
+        .recent-title { font-weight: 600; color: var(--fb-text-muted); margin-bottom: 12px; font-size: 15px; }
+        .recent-scans-container { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; }
         
-        #student-photo { 
-            width: 100%; 
-            max-width: 350px; 
-            height: 350px; 
-            border-radius: 12px; 
-            object-fit: cover; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        .mini-card {
+            background: var(--fb-card); padding: 10px; border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2); min-width: 100px;
+            display: flex; flex-direction: column; align-items: center; flex-shrink: 0;
         }
+        .mini-card img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; border: 2px solid var(--fb-blue); }
+        .mini-name { font-weight: 600; font-size: 12px; color: var(--fb-text); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+        .mini-time { font-size: 11px; color: var(--fb-text-muted); }
+
+        /* Hidden Scanner Container */
+        #scanner-hidden-container { position: absolute; top: -9999px; left: -9999px; width: 10px; height: 10px; overflow: hidden; }
+
+        /* Subtle Bottom-Left Tools Menu */
+        .tools-container { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 100; }
+        .tool-btn { 
+            width: 44px; height: 44px; border-radius: 50%; background: var(--fb-card); 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; border: none; font-size: 18px; text-decoration: none; position: relative;
+            color: var(--fb-text-muted); transition: background 0.2s;
+        }
+        .tool-btn:hover { background: #e4e6eb; }
         
-        #student-name { font-size: 32px; font-weight: 800; color: #222; margin: 15px 0 5px 0; }
-        #student-id { font-size: 18px; color: #888; margin: 0; }
-        .success-text { color: #28a745; font-weight: bold; margin-top: 15px; font-size: 18px; }
+        /* Hover Tooltips */
+        .tool-btn::after {
+            content: attr(data-tooltip); position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: #fff; padding: 6px 10px; border-radius: 6px; 
+            font-size: 13px; font-weight: 600; white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s;
+        }
+        .tool-btn:hover::after { opacity: 1; }
+
     </style>
 </head>
 <body>
-    <h1>Student Attendance</h1>
-    <a href="admin.html" style="display:inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none;">⚙️ Admin Dashboard</a>
-    
-    <br>
-    <button class="sync-btn" onclick="syncData()">Sync Database to Device</button>
-    
-    <div id="progress-container">
-        <div id="progress-bar"></div>
+    <div id="fb-progress"></div>
+
+    <div class="navbar">
+        <div class="fb-logo">A</div>
+        Attendance
     </div>
-    <p id="sync-status" style="font-size: 14px; color: gray;">Not Synced Yet</p>
-    
-    <div id="reader"></div>
-    
-    <div id="result-card">
-        <div id="scan-time"></div>
-        <img id="student-photo" src="" alt="Student">
-        <div id="student-name"></div>
-        <div id="student-id"></div>
-        <div class="success-text">✔️ Attendance Logged</div>
+
+    <div class="main-container">
+        <div class="cam-indicator"><div class="pulse-dot"></div> Scanner Active</div>
+        
+        <div id="result-card">
+            <div id="scan-time"></div>
+            <img id="student-photo" src="" alt="Student">
+            <div id="student-name"></div>
+            <div id="student-id"></div>
+        </div>
+
+        <div class="recent-section">
+            <div class="recent-title">Recent Scans</div>
+            <div class="recent-scans-container" id="recent-scans-list">
+                <!-- Mini ID cards will populate here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Camera Processing Div -->
+    <div id="scanner-hidden-container">
+        <div id="reader"></div>
+    </div>
+
+    <!-- Subtle Floating Action Buttons -->
+    <div class="tools-container">
+        <button class="tool-btn" data-tooltip="Sync Database" onclick="syncData()">🔄</button>
+        <a href="admin.html" class="tool-btn" data-tooltip="Admin Dashboard">⚙️</a>
     </div>
 
     <script src="app.js"></script>
@@ -96,42 +164,28 @@
         
         let isCooldown = false; 
         let displayTimeout = null; 
+        let recentScans = JSON.parse(localStorage.getItem('recentScans') || '[]');
 
-        // --- VOICE SETUP LOGIC ---
+        // Voice Setup
         let femaleVoice = null;
         function loadVoices() {
             const voices = window.speechSynthesis.getVoices();
-            // Hunt for the best natural female voices installed on the device
-            femaleVoice = voices.find(v => 
-                v.name.includes('Female') || 
-                v.name.includes('Samantha') || // Mac/iOS
-                v.name.includes('Zira') ||     // Windows
-                v.name.includes('Jenny') ||    // Windows Natural
-                v.name.includes('Karen') ||    // Mac/iOS
-                v.name.includes('Victoria')
-            );
-            // Fallback to first English voice if specific female names aren't found
-            if (!femaleVoice) {
-                femaleVoice = voices.find(v => v.lang.startsWith('en-'));
-            }
+            femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Jenny') || v.name.includes('Karen') || v.name.includes('Victoria'));
+            if (!femaleVoice) femaleVoice = voices.find(v => v.lang.startsWith('en-'));
         }
-        // Browsers load voices asynchronously, so we must listen for them to be ready
         window.speechSynthesis.onvoiceschanged = loadVoices;
-        // -------------------------
+
+        // Render Recent Scans immediately on page load
+        renderRecentScans();
 
         function syncData() {
-            const status = document.getElementById('sync-status');
-            const progressCont = document.getElementById('progress-container');
-            const progressBar = document.getElementById('progress-bar');
-            
-            status.innerText = "Downloading database...";
-            progressCont.style.display = 'block';
+            const progressBar = document.getElementById('fb-progress');
             progressBar.style.width = '20%'; 
 
             const formData = new FormData();
             formData.append('action', 'sync');
             
-            setTimeout(() => { if(progressBar.style.width === '20%') progressBar.style.width = '60%'; }, 1000);
+            setTimeout(() => { if(progressBar.style.width === '20%') progressBar.style.width = '70%'; }, 1000);
 
             fetch(SCRIPT_URL, { method: 'POST', body: formData })
                 .then(res => res.json())
@@ -140,19 +194,28 @@
                         progressBar.style.width = '100%'; 
                         localStorage.setItem('localStudents', JSON.stringify(data.students));
                         
-                        setTimeout(() => {
-                            status.innerText = "Database Synced! Ready for fast scanning.";
-                            status.style.color = "#28a745";
-                            progressCont.style.display = 'none';
-                            progressBar.style.width = '0%'; 
-                        }, 800);
+                        setTimeout(() => { progressBar.style.width = '0%'; }, 500); // Hide bar after finish
                     }
                 })
                 .catch(() => {
-                    status.innerText = "Error syncing. Check connection.";
-                    status.style.color = "red";
-                    progressCont.style.display = 'none';
+                    progressBar.style.background = 'red';
+                    setTimeout(() => { progressBar.style.width = '0%'; progressBar.style.background = '#42b72a'; }, 1500);
                 });
+        }
+
+        function renderRecentScans() {
+            const container = document.getElementById('recent-scans-list');
+            container.innerHTML = '';
+            
+            recentScans.forEach(scan => {
+                container.innerHTML += `
+                    <div class="mini-card">
+                        <img src="${scan.photo}">
+                        <div class="mini-name">${scan.name}</div>
+                        <div class="mini-time">${scan.time}</div>
+                    </div>
+                `;
+            });
         }
 
         function onScanSuccess(decodedText) {
@@ -160,8 +223,6 @@
             
             isCooldown = true;
             html5QrcodeScanner.pause();
-
-            // Make sure voices are loaded just in case they missed the event
             if (!femaleVoice) loadVoices(); 
 
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
@@ -171,63 +232,50 @@
                 if (displayTimeout) clearTimeout(displayTimeout);
 
                 const card = document.getElementById('result-card');
-                
                 card.classList.remove('pop-in');
                 void card.offsetWidth; 
                 card.classList.add('pop-in');
                 card.style.display = 'block';
 
                 const now = new Date();
-                const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
                 const hour = now.getHours();
                 let greeting = "Good evening";
-                if (hour < 12) {
-                    greeting = "Good morning";
-                } else if (hour < 18) {
-                    greeting = "Good afternoon";
-                }
+                if (hour < 12) greeting = "Good morning";
+                else if (hour < 18) greeting = "Good afternoon";
 
-                // Stop any audio currently playing
                 window.speechSynthesis.cancel();
-                
-                // --- AUDIO SPEAKING LOGIC ---
                 const speech = new SpeechSynthesisUtterance(greeting + ", " + student.name);
-                if (femaleVoice) {
-                    speech.voice = femaleVoice;
-                }
-                // Tweak pitch and speed to sound more human
-                speech.rate = 0.9;  // Slightly slower 
-                speech.pitch = 1.1; // Slightly higher pitch
+                if (femaleVoice) speech.voice = femaleVoice;
+                speech.rate = 0.9; speech.pitch = 1.1;
                 window.speechSynthesis.speak(speech);
-                // ----------------------------
 
-                document.getElementById('scan-time').innerText = "Scanned at: " + timeString;
+                // Update Main Card UI
+                document.getElementById('scan-time').innerText = "Logged today at " + timeString;
                 document.getElementById('student-name').innerText = student.name;
                 document.getElementById('student-id').innerText = "ID: " + decodedText;
                 document.getElementById('student-photo').src = student.photo;
 
+                // Add to Recent Scans List
+                recentScans.unshift({ name: student.name, photo: student.photo, time: timeString });
+                if (recentScans.length > 10) recentScans.pop(); // Keep only last 10
+                localStorage.setItem('recentScans', JSON.stringify(recentScans));
+                renderRecentScans();
+
+                // Log in background
                 const logData = new FormData();
                 logData.append('action', 'log');
                 logData.append('id', decodedText);
                 logData.append('name', student.name);
                 fetch(SCRIPT_URL, { method: 'POST', body: logData });
 
-                setTimeout(() => {
-                    html5QrcodeScanner.resume();
-                    isCooldown = false;
-                }, 2000);
+                setTimeout(() => { html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
 
-                displayTimeout = setTimeout(() => {
-                    card.style.display = 'none';
-                }, 120000);
+                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 120000);
 
             } else {
-                alert("ID: " + decodedText + " not found. Please click Sync Database.");
-                setTimeout(() => {
-                    html5QrcodeScanner.resume();
-                    isCooldown = false;
-                }, 2000);
+                setTimeout(() => { html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
             }
         }
         
