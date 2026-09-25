@@ -5,83 +5,199 @@
     <title>Attendance Scanner</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 20px; }
-        #reader { width: 400px; margin: 0 auto; }
-        #result-card { display: none; margin-top: 20px; border: 1px solid #ccc; padding: 20px; border-radius: 8px; background: #f9f9f9; }
-        #student-photo { width: 200px; height: 200px; border-radius: 8px; object-fit: cover; }
-        .sync-btn { background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px;}
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            margin-top: 20px; 
+            background: #f0f2f5;
+        }
+        h1 { color: #333; }
+        
+        #reader { width: 400px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        
+        .sync-btn { 
+            background: #28a745; color: white; padding: 12px 24px; 
+            border: none; border-radius: 5px; cursor: pointer; 
+            margin-bottom: 10px; font-size: 16px; font-weight: bold;
+            transition: background 0.3s;
+        }
+        .sync-btn:hover { background: #218838; }
+        
+        #progress-container {
+            width: 80%; max-width: 400px; margin: 10px auto;
+            background: #e9ecef; border-radius: 8px; overflow: hidden;
+            display: none; height: 10px;
+        }
+        #progress-bar {
+            width: 0%; height: 100%; background: #007bff;
+            transition: width 0.4s ease;
+        }
+
+        #result-card { 
+            display: none; 
+            width: 90%; max-width: 450px; 
+            margin: 20px auto; 
+            background: #fff; 
+            padding: 20px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        
+        .pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        #scan-time { font-size: 18px; color: #666; font-weight: bold; margin-bottom: 15px; }
+        
+        #student-photo { 
+            width: 100%; 
+            max-width: 350px; 
+            height: 350px; 
+            border-radius: 12px; 
+            object-fit: cover; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        #student-name { font-size: 32px; font-weight: 800; color: #222; margin: 15px 0 5px 0; }
+        #student-id { font-size: 18px; color: #888; margin: 0; }
+        .success-text { color: #28a745; font-weight: bold; margin-top: 15px; font-size: 18px; }
     </style>
 </head>
 <body>
     <h1>Student Attendance</h1>
-    <a href="admin.html" style="display:block; margin-bottom: 10px;">Go to Admin</a>
+    <a href="admin.html" style="display:inline-block; margin-bottom: 15px; color: #007bff; text-decoration: none;">⚙️ Admin Dashboard</a>
     
+    <br>
     <button class="sync-btn" onclick="syncData()">Sync Database to Device</button>
-    <p id="sync-status" style="font-size: 12px; color: gray;">Not Synced Yet</p>
+    
+    <div id="progress-container">
+        <div id="progress-bar"></div>
+    </div>
+    <p id="sync-status" style="font-size: 14px; color: gray;">Not Synced Yet</p>
     
     <div id="reader"></div>
     
     <div id="result-card">
+        <div id="scan-time"></div>
         <img id="student-photo" src="" alt="Student">
-        <h2 id="student-name"></h2>
-        <h3 id="student-id"></h3>
-        <p style="color: green; font-weight: bold;">Logged Successfully</p>
+        <div id="student-name"></div>
+        <div id="student-id"></div>
+        <div class="success-text">✔️ Attendance Logged</div>
     </div>
 
     <script src="app.js"></script>
     <script>
         const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-        let isProcessing = false;
+        
+        let isCooldown = false; 
+        let displayTimeout = null; 
 
-        // Download entire database to browser local storage
         function syncData() {
-            document.getElementById('sync-status').innerText = "Syncing with Google Sheets...";
+            const status = document.getElementById('sync-status');
+            const progressCont = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            
+            status.innerText = "Downloading database...";
+            progressCont.style.display = 'block';
+            progressBar.style.width = '20%'; 
+
             const formData = new FormData();
             formData.append('action', 'sync');
             
+            setTimeout(() => { if(progressBar.style.width === '20%') progressBar.style.width = '60%'; }, 1000);
+
             fetch(SCRIPT_URL, { method: 'POST', body: formData })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
+                        progressBar.style.width = '100%'; 
                         localStorage.setItem('localStudents', JSON.stringify(data.students));
-                        document.getElementById('sync-status').innerText = "Database Synced! Ready for fast scanning.";
+                        
+                        setTimeout(() => {
+                            status.innerText = "Database Synced! Ready for fast scanning.";
+                            status.style.color = "#28a745";
+                            progressCont.style.display = 'none';
+                            progressBar.style.width = '0%'; 
+                        }, 800);
                     }
+                })
+                .catch(() => {
+                    status.innerText = "Error syncing. Check connection.";
+                    status.style.color = "red";
+                    progressCont.style.display = 'none';
                 });
         }
 
-        // Instant local scanning
         function onScanSuccess(decodedText) {
-            if (isProcessing) return;
-            isProcessing = true;
+            if (isCooldown) return;
+            
+            isCooldown = true;
             html5QrcodeScanner.pause();
 
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
             const student = localData[decodedText];
 
             if (student) {
-                // Instantly display UI from local memory
-                document.getElementById('result-card').style.display = 'block';
+                if (displayTimeout) clearTimeout(displayTimeout);
+
+                const card = document.getElementById('result-card');
+                
+                card.classList.remove('pop-in');
+                void card.offsetWidth; 
+                card.classList.add('pop-in');
+                card.style.display = 'block';
+
+                const now = new Date();
+                const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                // --- AUDIO GREETING LOGIC ---
+                const hour = now.getHours();
+                let greeting = "Good evening";
+                if (hour < 12) {
+                    greeting = "Good morning";
+                } else if (hour < 18) {
+                    greeting = "Good afternoon";
+                }
+
+                // Stop any audio currently playing so it doesn't overlap on fast scans
+                window.speechSynthesis.cancel();
+                
+                // Speak the greeting and the name
+                const speech = new SpeechSynthesisUtterance(greeting + ", " + student.name);
+                window.speechSynthesis.speak(speech);
+                // ----------------------------
+
+                document.getElementById('scan-time').innerText = "Scanned at: " + timeString;
                 document.getElementById('student-name').innerText = student.name;
-                document.getElementById('student-id').innerText = decodedText;
+                document.getElementById('student-id').innerText = "ID: " + decodedText;
                 document.getElementById('student-photo').src = student.photo;
 
-                // Push log to Sheets in the background silently
                 const logData = new FormData();
                 logData.append('action', 'log');
                 logData.append('id', decodedText);
                 logData.append('name', student.name);
                 fetch(SCRIPT_URL, { method: 'POST', body: logData });
 
-                // Resume scanner after 2.5 seconds
                 setTimeout(() => {
-                    document.getElementById('result-card').style.display = 'none';
                     html5QrcodeScanner.resume();
-                    isProcessing = false;
-                }, 2500);
+                    isCooldown = false;
+                }, 2000);
+
+                displayTimeout = setTimeout(() => {
+                    card.style.display = 'none';
+                }, 120000);
+
             } else {
-                alert("Student ID not found in local database. Please click Sync Database.");
-                html5QrcodeScanner.resume();
-                isProcessing = false;
+                alert("ID: " + decodedText + " not found. Please click Sync Database.");
+                setTimeout(() => {
+                    html5QrcodeScanner.resume();
+                    isCooldown = false;
+                }, 2000);
             }
         }
         
