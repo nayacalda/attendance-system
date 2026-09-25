@@ -5,62 +5,86 @@
     <title>Attendance Scanner</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+        body { font-family: sans-serif; text-align: center; margin-top: 20px; }
         #reader { width: 400px; margin: 0 auto; }
-        #result-card { display: none; margin-top: 20px; border: 1px solid #ccc; padding: 20px; border-radius: 8px; }
-        #student-photo { max-width: 200px; border-radius: 8px; }
+        #result-card { display: none; margin-top: 20px; border: 1px solid #ccc; padding: 20px; border-radius: 8px; background: #f9f9f9; }
+        #student-photo { width: 200px; height: 200px; border-radius: 8px; object-fit: cover; }
+        .sync-btn { background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px;}
     </style>
 </head>
 <body>
-    <h1>Student Attendance Scanner</h1>
-    <a href="admin.html">Go to Admin Dashboard</a>
+    <h1>Student Attendance</h1>
+    <a href="admin.html" style="display:block; margin-bottom: 10px;">Go to Admin</a>
+    
+    <button class="sync-btn" onclick="syncData()">Sync Database to Device</button>
+    <p id="sync-status" style="font-size: 12px; color: gray;">Not Synced Yet</p>
     
     <div id="reader"></div>
     
     <div id="result-card">
-        <img id="student-photo" src="" alt="Student Photo">
+        <img id="student-photo" src="" alt="Student">
         <h2 id="student-name"></h2>
         <h3 id="student-id"></h3>
-        <p style="color: green;">Attendance Logged!</p>
+        <p style="color: green; font-weight: bold;">Logged Successfully</p>
     </div>
 
     <script src="app.js"></script>
     <script>
-        // Initialize Scanner
         const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
         let isProcessing = false;
 
+        // Download entire database to browser local storage
+        function syncData() {
+            document.getElementById('sync-status').innerText = "Syncing with Google Sheets...";
+            const formData = new FormData();
+            formData.append('action', 'sync');
+            
+            fetch(SCRIPT_URL, { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        localStorage.setItem('localStudents', JSON.stringify(data.students));
+                        document.getElementById('sync-status').innerText = "Database Synced! Ready for fast scanning.";
+                    }
+                });
+        }
+
+        // Instant local scanning
         function onScanSuccess(decodedText) {
             if (isProcessing) return;
             isProcessing = true;
             html5QrcodeScanner.pause();
 
-            const formData = new FormData();
-            formData.append('action', 'scan');
-            formData.append('id', decodedText);
+            const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
+            const student = localData[decodedText];
 
-            fetch(SCRIPT_URL, { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        document.getElementById('result-card').style.display = 'block';
-                        document.getElementById('student-name').innerText = data.name;
-                        document.getElementById('student-id').innerText = data.id;
-                        document.getElementById('student-photo').src = data.photo;
-                        
-                        // Resume scanner after 3 seconds
-                        setTimeout(() => {
-                            document.getElementById('result-card').style.display = 'none';
-                            html5QrcodeScanner.resume();
-                            isProcessing = false;
-                        }, 3000);
-                    } else {
-                        alert(data.message);
-                        html5QrcodeScanner.resume();
-                        isProcessing = false;
-                    }
-                });
+            if (student) {
+                // Instantly display UI from local memory
+                document.getElementById('result-card').style.display = 'block';
+                document.getElementById('student-name').innerText = student.name;
+                document.getElementById('student-id').innerText = decodedText;
+                document.getElementById('student-photo').src = student.photo;
+
+                // Push log to Sheets in the background silently
+                const logData = new FormData();
+                logData.append('action', 'log');
+                logData.append('id', decodedText);
+                logData.append('name', student.name);
+                fetch(SCRIPT_URL, { method: 'POST', body: logData });
+
+                // Resume scanner after 2.5 seconds
+                setTimeout(() => {
+                    document.getElementById('result-card').style.display = 'none';
+                    html5QrcodeScanner.resume();
+                    isProcessing = false;
+                }, 2500);
+            } else {
+                alert("Student ID not found in local database. Please click Sync Database.");
+                html5QrcodeScanner.resume();
+                isProcessing = false;
+            }
         }
+        
         html5QrcodeScanner.render(onScanSuccess);
     </script>
 </body>
