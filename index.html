@@ -42,7 +42,7 @@
             background: #42b72a; width: 0%; transition: width 0.3s; z-index: 1000; 
         }
 
-        .main-container { max-width: 500px; margin: 30px auto; text-align: center; }
+        .main-container { max-width: 500px; margin: 20px auto; text-align: center; }
 
         /* Camera Indicator */
         .cam-indicator {
@@ -50,7 +50,7 @@
             background: var(--fb-card); padding: 8px 16px;
             border-radius: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             font-size: 14px; font-weight: 600; color: var(--fb-text-muted);
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         
         .pulse-dot {
@@ -65,12 +65,28 @@
             100% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0); }
         }
 
-        /* Main Result Card (Facebook Post Style) */
+        /* --- NEW OVERLAY WRAPPER --- */
+        .scanner-wrapper {
+            position: relative;
+            width: 90%; max-width: 450px;
+            margin: 0 auto;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            background: #000; /* Black background behind camera */
+        }
+
+        #reader { width: 100%; }
+
+        /* Result Card (Now Overlays the Camera) */
         #result-card { 
-            display: none; background: var(--fb-card);
-            border-radius: 8px; padding: 16px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-            margin: 0 15px;
+            display: none; /* Changed to flex in JS when active */
+            position: absolute; top: 0; left: 0; 
+            width: 100%; height: 100%;
+            background: var(--fb-card);
+            padding: 15px; box-sizing: border-box;
+            z-index: 10;
+            flex-direction: column; align-items: center; justify-content: center;
         }
 
         .pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
@@ -79,13 +95,13 @@
             100% { opacity: 1; transform: scale(1); }
         }
 
-        #scan-time { font-size: 14px; color: var(--fb-text-muted); font-weight: 600; margin-bottom: 15px; text-align: left; }
-        #student-photo { width: 100%; max-width: 400px; height: 350px; border-radius: 8px; object-fit: cover; border: 1px solid #ddd; }
-        #student-name { font-size: 24px; font-weight: 700; color: var(--fb-text); margin: 15px 0 5px 0; text-align: left;}
-        #student-id { font-size: 15px; color: var(--fb-text-muted); text-align: left;}
+        #scan-time { font-size: 14px; color: var(--fb-text-muted); font-weight: 600; margin-bottom: 10px; }
+        #student-photo { width: 100%; max-width: 280px; height: 280px; border-radius: 8px; object-fit: cover; border: 1px solid #ddd; }
+        #student-name { font-size: 24px; font-weight: 700; color: var(--fb-text); margin: 10px 0 5px 0; }
+        #student-id { font-size: 15px; color: var(--fb-text-muted); }
 
         /* Bottom Recent Scans (ID Cards) */
-        .recent-section { margin-top: 30px; text-align: left; padding: 0 15px; }
+        .recent-section { margin-top: 25px; text-align: left; padding: 0 20px; }
         .recent-title { font-weight: 600; color: var(--fb-text-muted); margin-bottom: 12px; font-size: 15px; }
         .recent-scans-container { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; }
         
@@ -98,9 +114,6 @@
         .mini-name { font-weight: 600; font-size: 12px; color: var(--fb-text); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
         .mini-time { font-size: 11px; color: var(--fb-text-muted); }
 
-        /* Hidden Scanner Container - FIXED RESOLUTION */
-        #scanner-hidden-container { position: absolute; opacity: 0; z-index: -999; width: 400px; }
-
         /* Subtle Bottom-Left Tools Menu */
         .tools-container { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 100; }
         .tool-btn { 
@@ -111,14 +124,12 @@
         }
         .tool-btn:hover { background: #e4e6eb; }
         
-        /* Hover Tooltips */
         .tool-btn::after {
             content: attr(data-tooltip); position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); color: #fff; padding: 6px 10px; border-radius: 6px; 
             font-size: 13px; font-weight: 600; white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s;
         }
         .tool-btn:hover::after { opacity: 1; }
-
     </style>
 </head>
 <body>
@@ -132,11 +143,16 @@
     <div class="main-container">
         <div class="cam-indicator"><div class="pulse-dot"></div> Scanner Active</div>
         
-        <div id="result-card">
-            <div id="scan-time"></div>
-            <img id="student-photo" src="" alt="Student">
-            <div id="student-name"></div>
-            <div id="student-id"></div>
+        <!-- Camera and Overlay Wrapper -->
+        <div class="scanner-wrapper">
+            <div id="reader"></div>
+            
+            <div id="result-card">
+                <div id="scan-time"></div>
+                <img id="student-photo" src="" alt="Student">
+                <div id="student-name"></div>
+                <div id="student-id"></div>
+            </div>
         </div>
 
         <div class="recent-section">
@@ -145,11 +161,6 @@
                 <!-- Mini ID cards will populate here -->
             </div>
         </div>
-    </div>
-
-    <!-- Hidden Camera Processing Div -->
-    <div id="scanner-hidden-container">
-        <div id="reader"></div>
     </div>
 
     <!-- Subtle Floating Action Buttons -->
@@ -175,7 +186,6 @@
         }
         window.speechSynthesis.onvoiceschanged = loadVoices;
 
-        // Render Recent Scans immediately on page load
         renderRecentScans();
 
         function syncData() {
@@ -193,8 +203,7 @@
                     if (data.success) {
                         progressBar.style.width = '100%'; 
                         localStorage.setItem('localStudents', JSON.stringify(data.students));
-                        
-                        setTimeout(() => { progressBar.style.width = '0%'; }, 500); // Hide bar after finish
+                        setTimeout(() => { progressBar.style.width = '0%'; }, 500); 
                     }
                 })
                 .catch(() => {
@@ -235,7 +244,7 @@
                 card.classList.remove('pop-in');
                 void card.offsetWidth; 
                 card.classList.add('pop-in');
-                card.style.display = 'block';
+                card.style.display = 'flex'; // Use flex to center overlay content
 
                 const now = new Date();
                 const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -251,28 +260,27 @@
                 speech.rate = 0.9; speech.pitch = 1.1;
                 window.speechSynthesis.speak(speech);
 
-                // Update Main Card UI
-                document.getElementById('scan-time').innerText = "Logged today at " + timeString;
+                document.getElementById('scan-time').innerText = "Logged at " + timeString;
                 document.getElementById('student-name').innerText = student.name;
                 document.getElementById('student-id').innerText = "ID: " + decodedText;
                 document.getElementById('student-photo').src = student.photo;
 
-                // Add to Recent Scans List
                 recentScans.unshift({ name: student.name, photo: student.photo, time: timeString });
-                if (recentScans.length > 10) recentScans.pop(); // Keep only last 10
+                if (recentScans.length > 10) recentScans.pop(); 
                 localStorage.setItem('recentScans', JSON.stringify(recentScans));
                 renderRecentScans();
 
-                // Log in background
                 const logData = new FormData();
                 logData.append('action', 'log');
                 logData.append('id', decodedText);
                 logData.append('name', student.name);
                 fetch(SCRIPT_URL, { method: 'POST', body: logData });
 
+                // Scanner lens wakes up after 2 seconds to allow interruptions
                 setTimeout(() => { html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
 
-                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 120000);
+                // Overlay stays for 5 minutes (300,000 ms) unless interrupted
+                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 300000);
 
             } else {
                 setTimeout(() => { html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
