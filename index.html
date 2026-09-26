@@ -20,7 +20,7 @@
         .btn-sync { background: #ff9800; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .btn-sync:hover { background: #e68a00; transform: scale(1.05); }
 
-        .main-container { max-width: 800px; margin: 40px auto; text-align: center; }
+        .main-container { max-width: 900px; margin: 40px auto; text-align: center; }
 
         /* The Viewfinder container */
         .scanner-wrapper {
@@ -30,7 +30,7 @@
         }
         
         #reader, #face-video { width: 100%; display: block; }
-        #face-video { transform: scaleX(-1); } /* Mirror camera like a phone */
+        #face-video { transform: scaleX(-1); }
 
         /* Mode Switcher */
         .mode-switch { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
@@ -54,10 +54,33 @@
         #student-photo { width: 220px; height: 220px; border-radius: 50%; object-fit: cover; border: 5px solid #1e3c72; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         #student-name { font-size: 28px; font-weight: 800; color: #1e3c72; margin: 15px 0 5px 0; }
         #scan-time { font-size: 16px; color: #666; font-weight: bold; }
-
-        /* Dynamic Status Text */
         #status-text { margin-top: 15px; font-size: 18px; font-weight: bold; color: #ffeb3b; }
 
+        /* --- NEW RESPONSIVE RECENT SCANS GRID --- */
+        .recent-section {
+            margin-top: 40px; width: 95%; max-width: 900px; margin-left: auto; margin-right: auto;
+            background: rgba(255,255,255,0.1); padding: 20px; border-radius: 16px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2); text-align: left;
+        }
+        .recent-title { color: white; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px; }
+        
+        /* Auto-adjusts columns based on width */
+        .recent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 12px;
+        }
+        
+        .mini-card {
+            background: white; border-radius: 12px; padding: 12px 8px;
+            display: flex; flex-direction: column; align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3); color: #333;
+        }
+        .mini-card img { width: 65px; height: 65px; border-radius: 50%; object-fit: cover; border: 3px solid #1e3c72; margin-bottom: 8px; }
+        .mini-name { font-size: 12px; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mini-time { font-size: 10px; color: #888; margin-top: 2px; }
+        .mini-status { font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-top: 6px; color: white; }
+        
         .admin-link { position: fixed; bottom: 20px; right: 20px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; }
         .admin-link:hover { color: white; }
     </style>
@@ -87,9 +110,17 @@
             </div>
         </div>
         <p id="status-text">System Ready. Please Sync DB first.</p>
+        
+        <!-- NEW HISTORY GRID -->
+        <div class="recent-section">
+            <div class="recent-title">Recent Scans Today</div>
+            <div class="recent-grid" id="recent-grid">
+                <!-- Mini ID cards will populate here dynamically -->
+            </div>
+        </div>
     </div>
 
-    <a href="admin.html" class="admin-link">⚙️ Admin</a>
+    <a href="admin.html" class="admin-link">⚙️ Admin Dashboard</a>
 
     <script src="app.js"></script>
     <script>
@@ -101,13 +132,15 @@
         let faceMatcher = null;
         let faceInterval = null;
 
+        // --- NEW: COOLDOWN MEMORY (5 MINUTES PER STUDENT) ---
+        let studentCooldowns = {}; 
+        
         let femaleVoice = null;
         window.speechSynthesis.onvoiceschanged = () => {
             const voices = window.speechSynthesis.getVoices();
             femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Jenny')) || voices.find(v => v.lang.startsWith('en-'));
         };
 
-        // Use the highly stable CDN
         const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
         Promise.all([
             faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
@@ -116,25 +149,19 @@
         ]).then(() => { 
             document.getElementById('status-text').innerText = "AI Models Loaded. Ready.";
             buildFaceMatcher(); 
+            renderRecentScans(); // Load cards on startup
         });
 
         function buildFaceMatcher() {
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
             const labeledDescriptors = [];
-            
             for (let id in localData) {
                 if (localData[id].face) {
                     const descArray = new Float32Array(JSON.parse(localData[id].face));
                     labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(id, [descArray]));
                 }
             }
-            
-            if(labeledDescriptors.length > 0) {
-                // 0.6 is slightly more forgiving for different lighting conditions
-                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6); 
-            } else {
-                faceMatcher = null;
-            }
+            if(labeledDescriptors.length > 0) faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6); 
         }
 
         function syncData() {
@@ -180,33 +207,43 @@
             navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { video.srcObject = stream; });
             
             document.getElementById('status-text').innerText = "Looking for a face...";
-            document.getElementById('status-text').style.color = "#ffeb3b"; // Yellow
+            document.getElementById('status-text').style.color = "#ffeb3b"; 
             
             faceInterval = setInterval(async () => {
                 if(isCooldown) return;
-                
                 const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
                 
                 if(detection) {
                     const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-                    
                     if(bestMatch.label !== "unknown") {
-                        document.getElementById('status-text').innerText = "✅ Face Matched!";
-                        document.getElementById('status-text').style.color = "#4CAF50"; // Green
                         processAttendance(bestMatch.label); 
                     } else {
                         document.getElementById('status-text').innerText = "❌ Face seen, but unknown.";
-                        document.getElementById('status-text').style.color = "#f44336"; // Red
+                        document.getElementById('status-text').style.color = "#f44336"; 
                     }
                 } else {
                     document.getElementById('status-text').innerText = "Looking for a face...";
-                    document.getElementById('status-text').style.color = "#ffeb3b"; // Yellow
+                    document.getElementById('status-text').style.color = "#ffeb3b"; 
                 }
-            }, 600); // Check every 0.6 seconds
+            }, 600); 
         }
 
         function processAttendance(studentId) {
             if (isCooldown) return;
+
+            const nowTime = new Date().getTime();
+            const FIVE_MINUTES = 5 * 60 * 1000;
+
+            // --- CHECK 5 MINUTE COOLDOWN FOR THIS SPECIFIC STUDENT ---
+            if (studentCooldowns[studentId] && (nowTime - studentCooldowns[studentId] < FIVE_MINUTES)) {
+                // If it's a QR scan, show a popup warning. (Face scans fail silently so it doesn't spam).
+                if (currentMode === 'qr') {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: `Wait 5 minutes before scanning again.`, showConfirmButton: false, timer: 3000 });
+                }
+                return; // Stop processing and drop the frame
+            }
+
+            // Lock camera momentarily to process UI
             isCooldown = true;
             if(currentMode === 'qr') html5QrcodeScanner.pause();
 
@@ -214,6 +251,9 @@
             const student = localData[studentId];
 
             if (student) {
+                // Record the cooldown time for this student
+                studentCooldowns[studentId] = nowTime;
+
                 if (displayTimeout) clearTimeout(displayTimeout);
 
                 const card = document.getElementById('result-card');
@@ -242,6 +282,13 @@
                 document.getElementById('student-name').innerText = student.name;
                 document.getElementById('student-photo').src = student.photo;
 
+                // --- UPDATE THE RECENT SCANS GRID ---
+                let recentCards = JSON.parse(localStorage.getItem('recentCards') || '[]');
+                recentCards.unshift({ name: student.name, photo: student.photo, status: status, time: timeString });
+                if (recentCards.length > 24) recentCards.pop(); // Keep the last 24 scans in the grid
+                localStorage.setItem('recentCards', JSON.stringify(recentCards));
+                renderRecentScans();
+
                 const logData = new FormData();
                 logData.append('action', 'log');
                 logData.append('id', studentId);
@@ -249,19 +296,41 @@
                 logData.append('email', student.email || ""); 
                 fetch(SCRIPT_URL, { method: 'POST', body: logData });
 
+                document.getElementById('status-text').innerText = `✅ ${student.name} Logged!`;
+                document.getElementById('status-text').style.color = "#4CAF50";
+
+                // Resume camera after 2.5 seconds to look for the NEXT person
                 setTimeout(() => { 
                     if(currentMode==='qr') html5QrcodeScanner.resume(); 
                     isCooldown = false; 
-                    document.getElementById('status-text').innerText = "Ready for next student.";
-                    document.getElementById('status-text').style.color = "#ffeb3b";
-                }, 3500); // 3.5 sec cooldown
+                }, 2500); 
                 
+                // Clear the main overlay picture after 5 minutes (unless interrupted by a new scan)
                 displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 300000); 
 
             } else {
-                Swal.fire({ icon: 'error', title: 'Invalid ID', text: `ID ${studentId} not found in system.`, timer: 2000, showConfirmButton: false });
+                Swal.fire({ icon: 'error', title: 'Invalid ID', text: `ID ${studentId} not found.`, timer: 2000, showConfirmButton: false });
                 setTimeout(() => { if(currentMode==='qr') html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
             }
+        }
+
+        function renderRecentScans() {
+            const grid = document.getElementById('recent-grid');
+            grid.innerHTML = '';
+            const recentCards = JSON.parse(localStorage.getItem('recentCards') || '[]');
+            
+            recentCards.forEach(scan => {
+                const badgeClass = scan.status === 'Arrived' ? 'mini-in' : 'mini-out';
+                const badgeText = scan.status === 'Arrived' ? 'IN' : 'OUT';
+                grid.innerHTML += `
+                    <div class="mini-card">
+                        <img src="${scan.photo}">
+                        <div class="mini-name">${scan.name}</div>
+                        <div class="mini-time">${scan.time}</div>
+                        <div class="mini-status ${badgeClass}">${badgeText}</div>
+                    </div>
+                `;
+            });
         }
         
         html5QrcodeScanner.render((decodedText) => { processAttendance(decodedText); });
