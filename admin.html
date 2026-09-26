@@ -2,44 +2,81 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Dashboard</title>
+    <title>Admin - School Attendance</title>
+    <!-- SweetAlert2 for beautiful popups -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Face API for Biometrics -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <style>
-        body { font-family: sans-serif; max-width: 500px; margin: 50px auto; padding: 20px; }
-        .section { display: none; border: 1px solid #ccc; padding: 20px; border-radius: 8px; margin-top: 20px; }
-        input, button { display: block; width: 100%; margin: 10px 0; padding: 10px; box-sizing: border-box; }
-        video { width: 100%; border: 1px solid #ccc; margin-top: 10px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        h1 { text-align: center; color: #1a73e8; }
+        input, button, select { width: 100%; margin: 10px 0; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 5px rgba(26,115,232,0.3); }
+        button { background: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #1557b0; transform: translateY(-1px); }
+        .btn-secondary { background: #e0e0e0; color: #333; }
+        .btn-secondary:hover { background: #d0d0d0; }
+        video { width: 100%; border-radius: 8px; border: 2px dashed #ccc; margin-top: 10px; background: #000; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { flex: 1; text-align: center; padding: 10px; background: #f0f0f0; cursor: pointer; font-weight: bold; border-bottom: 3px solid transparent; }
+        .tab.active { border-bottom: 3px solid #1a73e8; color: #1a73e8; background: white; }
     </style>
 </head>
 <body>
-    <h1>Admin Panel</h1>
-    <a href="index.html">Back to Scanner</a>
+    <div class="container">
+        <h1>Admin Portal</h1>
+        <a href="index.html" style="display:block; text-align:center; margin-bottom:20px; color:#666;">Back to Scanner</a>
 
-    <div id="login-section" style="display: block;">
-        <input type="text" id="username" placeholder="Username">
-        <input type="password" id="password" placeholder="Password">
-        <button onclick="login()">Login</button>
-    </div>
+        <div id="login-section">
+            <input type="text" id="username" placeholder="Admin Username">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="login()">Access System</button>
+        </div>
 
-    <div id="admin-section" class="section">
-        <h2>Add New Student</h2>
-        <input type="text" id="new-id" placeholder="Student ID Number">
-        <input type="text" id="new-name" placeholder="Full Name">
-        
-        <h3>Capture Photo</h3>
-        <button onclick="startCamera()">Start Camera</button>
-        <video id="video" autoplay></video>
-        <button onclick="capturePhoto()">Capture</button>
-        <canvas id="canvas" style="display:none;"></canvas>
-        <img id="preview" style="display:none; max-width: 200px; margin-top: 10px; border-radius: 8px;">
-        
-        <button onclick="saveStudent()" style="background: blue; color: white;">Save Student Data</button>
+        <div id="admin-section" style="display: none;">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('add')" id="tab-add">Add Student</div>
+                <div class="tab" onclick="switchTab('edit')" id="tab-edit">Edit Student</div>
+            </div>
+
+            <!-- Select student to edit (only visible in edit mode) -->
+            <select id="edit-selector" style="display:none;" onchange="loadStudentToEdit()"></select>
+
+            <input type="text" id="student-id" placeholder="Student ID Number (e.g. 1001)">
+            <input type="text" id="student-name" placeholder="Full Legal Name">
+            <input type="email" id="student-email" placeholder="Student Email (For Notifications)">
+            
+            <p style="font-size: 14px; color: gray; margin-bottom: 0;">Biometric & ID Photo Registration:</p>
+            <button class="btn-secondary" onclick="startCamera()">📷 Open Camera</button>
+            <video id="video" autoplay playsinline></video>
+            <button class="btn-secondary" onclick="document.getElementById('file-upload').click()">📁 Or Upload Picture</button>
+            <input type="file" id="file-upload" accept="image/*" style="display:none;" onchange="handleFileUpload(event)">
+            
+            <canvas id="canvas" style="display:none;"></canvas>
+            <img id="preview" style="display:none; max-width: 200px; margin: 10px auto; border-radius: 8px; border: 2px solid #1a73e8;">
+            <p id="face-status" style="text-align: center; font-weight: bold; color: orange; font-size: 14px;"></p>
+            
+            <button onclick="saveStudent()" id="save-btn">Save New Student</button>
+        </div>
     </div>
 
     <script src="app.js"></script>
     <script>
         let capturedPhotoBase64 = "";
+        let faceDescriptorData = "";
+        let currentMode = 'add';
+        let localData = {};
+
+        // Load Face AI Models
+        Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/')
+        ]).then(() => { console.log("Biometric AI Loaded"); });
 
         function login() {
+            Swal.fire({ title: 'Authenticating...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             const formData = new FormData();
             formData.append('action', 'login');
             formData.append('user', document.getElementById('username').value);
@@ -48,46 +85,168 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
+                        Swal.fire({ icon: 'success', title: 'Welcome Admin', timer: 1500, showConfirmButton: false });
                         document.getElementById('login-section').style.display = 'none';
                         document.getElementById('admin-section').style.display = 'block';
-                    } else alert("Invalid Credentials");
+                        fetchLocalData();
+                    } else Swal.fire({ icon: 'error', title: 'Access Denied', text: 'Invalid Credentials' });
                 });
         }
 
-        function startCamera() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => { document.getElementById('video').srcObject = stream; });
+        function fetchLocalData() {
+            const formData = new FormData(); formData.append('action', 'sync');
+            fetch(SCRIPT_URL, { method: 'POST', body: formData }).then(res => res.json()).then(data => {
+                localData = data.students;
+                updateEditDropdown();
+            });
         }
 
-        function capturePhoto() {
+        function switchTab(mode) {
+            currentMode = mode;
+            document.getElementById('tab-add').classList.toggle('active', mode === 'add');
+            document.getElementById('tab-edit').classList.toggle('active', mode === 'edit');
+            document.getElementById('edit-selector').style.display = mode === 'edit' ? 'block' : 'none';
+            document.getElementById('student-id').disabled = mode === 'edit';
+            document.getElementById('save-btn').innerText = mode === 'add' ? 'Save New Student' : 'Update Student';
+            if(mode === 'add') clearForm();
+        }
+
+        function updateEditDropdown() {
+            const sel = document.getElementById('edit-selector');
+            sel.innerHTML = '<option value="">-- Select Student to Edit --</option>';
+            for (let id in localData) {
+                sel.innerHTML += `<option value="${id}">${id} - ${localData[id].name}</option>`;
+            }
+        }
+
+        function loadStudentToEdit() {
+            const id = document.getElementById('edit-selector').value;
+            if(!id) return clearForm();
+            const s = localData[id];
+            document.getElementById('student-id').value = id;
+            document.getElementById('student-name').value = s.name;
+            document.getElementById('student-email').value = s.email || '';
+            document.getElementById('preview').src = s.photo;
+            document.getElementById('preview').style.display = 'block';
+            capturedPhotoBase64 = s.photo;
+            faceDescriptorData = ""; // Only updates face if they take a new photo
+            document.getElementById('face-status').innerText = "Current photo loaded. Take new photo to update biometrics.";
+            document.getElementById('face-status').style.color = "blue";
+        }
+
+        function clearForm() {
+            document.getElementById('student-id').value = '';
+            document.getElementById('student-name').value = '';
+            document.getElementById('student-email').value = '';
+            document.getElementById('preview').style.display = 'none';
+            document.getElementById('face-status').innerText = '';
+            capturedPhotoBase64 = ""; faceDescriptorData = "";
+        }
+
+        function startCamera() {
+            navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { 
+                document.getElementById('video').srcObject = stream; 
+                Swal.fire({
+                    title: 'Align Face',
+                    text: 'Look at the camera. We will automatically capture when a face is detected.',
+                    icon: 'info', timer: 3000, showConfirmButton: false
+                });
+                scanForFace();
+            });
+        }
+
+        // Auto-capture when face is detected
+        async function scanForFace() {
             const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
-            // Compress and resize image for local storage performance
-            canvas.width = 200;
-            canvas.height = 200;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, 200, 200);
-            
-            capturedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.6); // 60% quality limits file size
-            
-            const preview = document.getElementById('preview');
-            preview.src = capturedPhotoBase64;
-            preview.style.display = 'block';
+            if(video.paused || video.ended || !video.srcObject) return;
+
+            const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+            if (detection) {
+                const canvas = document.getElementById('canvas');
+                canvas.width = 250; canvas.height = 250;
+                
+                // Crop around the face roughly
+                const box = detection.detection.box;
+                canvas.getContext('2d').drawImage(video, box.x - 50, box.y - 50, box.width + 100, box.height + 100, 0, 0, 250, 250);
+                
+                capturedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                faceDescriptorData = JSON.stringify(Array.from(detection.descriptor)); // Save 128-point face map
+                
+                document.getElementById('preview').src = capturedPhotoBase64;
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('face-status').innerText = "✅ Biometrics Successfully Registered!";
+                document.getElementById('face-status').style.color = "green";
+                
+                video.srcObject.getTracks().forEach(track => track.stop()); // Turn off camera
+                Swal.fire({ icon: 'success', title: 'Face Captured', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+            } else {
+                setTimeout(scanForFace, 500); // Try again in 0.5s
+            }
+        }
+
+        // Handle manual file upload fallback
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = async () => {
+                document.getElementById('face-status').innerText = "Analyzing uploaded photo...";
+                document.getElementById('face-status').style.color = "orange";
+                
+                const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+                if (detection) {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = 250; canvas.height = 250;
+                    canvas.getContext('2d').drawImage(img, 0, 0, 250, 250);
+                    capturedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    faceDescriptorData = JSON.stringify(Array.from(detection.descriptor));
+                    
+                    document.getElementById('preview').src = capturedPhotoBase64;
+                    document.getElementById('preview').style.display = 'block';
+                    document.getElementById('face-status').innerText = "✅ Biometrics Successfully Extracted!";
+                    document.getElementById('face-status').style.color = "green";
+                } else {
+                    Swal.fire({ icon: 'error', title: 'No Face Found', text: 'Please upload a clear picture of a single face.' });
+                    document.getElementById('face-status').innerText = "❌ Biometrics Failed. Try another photo.";
+                    document.getElementById('face-status').style.color = "red";
+                }
+            }
         }
 
         function saveStudent() {
-            if (!capturedPhotoBase64) return alert("Capture a photo first!");
+            const id = document.getElementById('student-id').value;
+            const name = document.getElementById('student-name').value;
+            const email = document.getElementById('student-email').value;
+
+            if (!id || !name || !capturedPhotoBase64) return Swal.fire('Missing Info', 'ID, Name, and Photo are required.', 'warning');
+            
+            // DUPLICATE CHECK
+            if (currentMode === 'add' && localData[id]) {
+                return Swal.fire({
+                    icon: 'error', title: 'Duplicate ID',
+                    text: `ID ${id} is already registered to ${localData[id].name}. Please use a different ID or switch to Edit mode.`
+                });
+            }
+
+            Swal.fire({ title: 'Saving Data...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
             const formData = new FormData();
-            formData.append('action', 'addStudent');
-            formData.append('id', document.getElementById('new-id').value);
-            formData.append('name', document.getElementById('new-name').value);
+            formData.append('action', currentMode === 'add' ? 'addStudent' : 'editStudent');
+            formData.append('id', id);
+            formData.append('name', name);
+            formData.append('email', email);
             formData.append('photo', capturedPhotoBase64);
+            if(faceDescriptorData) formData.append('face', faceDescriptorData);
 
             fetch(SCRIPT_URL, { method: 'POST', body: formData })
                 .then(res => res.json())
                 .then(data => {
-                    alert(data.message);
-                    if (data.success) location.reload(); // Reset form
+                    if (data.success) {
+                        Swal.fire('Success!', `Student ${currentMode === 'add' ? 'Added' : 'Updated'} Successfully`, 'success');
+                        fetchLocalData(); // Refresh local list
+                        if(currentMode === 'add') clearForm();
+                    }
                 });
         }
     </script>
