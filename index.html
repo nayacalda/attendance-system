@@ -2,292 +2,246 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Attendance Scanner</title>
+    <title>School Attendance Scanner</title>
+    <!-- Scanner and Face Libraries -->
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        :root {
-            --fb-blue: #1877F2;
-            --fb-bg: #F0F2F5;
-            --fb-text: #050505;
-            --fb-text-muted: #65676B;
-            --fb-card: #FFFFFF;
-        }
-
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: var(--fb-bg);
-            color: var(--fb-text);
-            margin: 0; padding: 0;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); /* Elegant School Blue */
+            color: white; margin: 0; padding: 0; min-height: 100vh;
         }
 
-        /* Top Facebook-style Navbar */
-        .navbar {
-            background: var(--fb-card);
-            height: 56px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            display: flex; align-items: center; padding: 0 16px;
-            font-size: 20px; font-weight: 700; color: var(--fb-blue);
-        }
-        
-        .fb-logo {
-            background: var(--fb-blue); color: white;
-            width: 36px; height: 36px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 20px; margin-right: 10px;
-        }
+        .header { background: rgba(0,0,0,0.3); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 300; letter-spacing: 1px; }
+        .btn-sync { background: #ff9800; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-sync:hover { background: #e68a00; transform: scale(1.05); }
 
-        /* Subtle Top Loading Bar */
-        #fb-progress { 
-            position: fixed; top: 0; left: 0; height: 3px; 
-            background: #42b72a; width: 0%; transition: width 0.3s; z-index: 1000; 
-        }
+        .main-container { max-width: 800px; margin: 40px auto; text-align: center; }
 
-        .main-container { max-width: 500px; margin: 20px auto; text-align: center; }
-
-        /* Camera Indicator */
-        .cam-indicator {
-            display: inline-flex; align-items: center;
-            background: var(--fb-card); padding: 8px 16px;
-            border-radius: 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            font-size: 14px; font-weight: 600; color: var(--fb-text-muted);
-            margin-bottom: 15px;
-        }
-        
-        .pulse-dot {
-            width: 10px; height: 10px; background: #31A24C;
-            border-radius: 50%; margin-right: 8px;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0.7); }
-            70% { box-shadow: 0 0 0 6px rgba(49, 162, 76, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(49, 162, 76, 0); }
-        }
-
-        /* --- NEW OVERLAY WRAPPER --- */
+        /* The Viewfinder container */
         .scanner-wrapper {
-            position: relative;
-            width: 90%; max-width: 450px;
-            margin: 0 auto;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            background: #000; /* Black background behind camera */
+            position: relative; width: 90%; max-width: 500px; margin: 0 auto;
+            border-radius: 16px; overflow: hidden; background: #000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 4px solid rgba(255,255,255,0.1);
         }
+        
+        #reader, #face-video { width: 100%; display: block; }
+        #face-video { transform: scaleX(-1); /* Mirror camera */ }
 
-        #reader { width: 100%; }
+        /* Mode Switcher */
+        .mode-switch { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .mode-btn { background: rgba(255,255,255,0.2); color: white; border: 2px solid transparent; padding: 10px 20px; border-radius: 30px; cursor: pointer; font-size: 16px; }
+        .mode-btn.active { background: white; color: #1e3c72; border-color: white; font-weight: bold; }
 
-        /* Result Card (Now Overlays the Camera) */
+        /* Pop-up Student Card Overlay */
         #result-card { 
-            display: none; /* Changed to flex in JS when active */
-            position: absolute; top: 0; left: 0; 
-            width: 100%; height: 100%;
-            background: var(--fb-card);
-            padding: 15px; box-sizing: border-box;
-            z-index: 10;
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.95); z-index: 20; color: #333;
             flex-direction: column; align-items: center; justify-content: center;
         }
 
-        .pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        @keyframes popIn {
-            0% { opacity: 0; transform: scale(0.95); }
-            100% { opacity: 1; transform: scale(1); }
-        }
+        .pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popIn { 0% { opacity: 0; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1); } }
 
-        #scan-time { font-size: 14px; color: var(--fb-text-muted); font-weight: 600; margin-bottom: 10px; }
-        #student-photo { width: 100%; max-width: 280px; height: 280px; border-radius: 8px; object-fit: cover; border: 1px solid #ddd; }
-        #student-name { font-size: 24px; font-weight: 700; color: var(--fb-text); margin: 10px 0 5px 0; }
-        #student-id { font-size: 15px; color: var(--fb-text-muted); }
+        .status-badge { padding: 8px 20px; border-radius: 30px; font-weight: bold; color: white; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px; text-transform: uppercase; }
+        .status-in { background: #4CAF50; box-shadow: 0 4px 10px rgba(76,175,80,0.4); }
+        .status-out { background: #f44336; box-shadow: 0 4px 10px rgba(244,67,54,0.4); }
 
-        /* Bottom Recent Scans (ID Cards) */
-        .recent-section { margin-top: 25px; text-align: left; padding: 0 20px; }
-        .recent-title { font-weight: 600; color: var(--fb-text-muted); margin-bottom: 12px; font-size: 15px; }
-        .recent-scans-container { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 15px; }
-        
-        .mini-card {
-            background: var(--fb-card); padding: 10px; border-radius: 8px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2); min-width: 100px;
-            display: flex; flex-direction: column; align-items: center; flex-shrink: 0;
-        }
-        .mini-card img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin-bottom: 8px; border: 2px solid var(--fb-blue); }
-        .mini-name { font-weight: 600; font-size: 12px; color: var(--fb-text); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
-        .mini-time { font-size: 11px; color: var(--fb-text-muted); }
+        #student-photo { width: 220px; height: 220px; border-radius: 50%; object-fit: cover; border: 5px solid #1e3c72; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        #student-name { font-size: 28px; font-weight: 800; color: #1e3c72; margin: 15px 0 5px 0; }
+        #scan-time { font-size: 16px; color: #666; font-weight: bold; }
 
-        /* Subtle Bottom-Left Tools Menu */
-        .tools-container { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 100; }
-        .tool-btn { 
-            width: 44px; height: 44px; border-radius: 50%; background: var(--fb-card); 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; 
-            cursor: pointer; border: none; font-size: 18px; text-decoration: none; position: relative;
-            color: var(--fb-text-muted); transition: background 0.2s;
-        }
-        .tool-btn:hover { background: #e4e6eb; }
-        
-        .tool-btn::after {
-            content: attr(data-tooltip); position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); color: #fff; padding: 6px 10px; border-radius: 6px; 
-            font-size: 13px; font-weight: 600; white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s;
-        }
-        .tool-btn:hover::after { opacity: 1; }
+        .admin-link { position: fixed; bottom: 20px; right: 20px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; }
+        .admin-link:hover { color: white; }
     </style>
 </head>
 <body>
-    <div id="fb-progress"></div>
-
-    <div class="navbar">
-        <div class="fb-logo">A</div>
-        Attendance
+    <div class="header">
+        <h1>🎓 Campus Attendance</h1>
+        <button class="btn-sync" onclick="syncData()">🔄 Sync DB</button>
     </div>
 
     <div class="main-container">
-        <div class="cam-indicator"><div class="pulse-dot"></div> Scanner Active</div>
         
-        <!-- Camera and Overlay Wrapper -->
+        <div class="mode-switch">
+            <button class="mode-btn active" id="btn-qr" onclick="setMode('qr')">📱 Scan QR ID</button>
+            <button class="mode-btn" id="btn-face" onclick="setMode('face')">👁️ Face Recognition</button>
+        </div>
+
         <div class="scanner-wrapper">
+            <!-- QR Scanner Div -->
             <div id="reader"></div>
+            <!-- Face Scanner Video -->
+            <video id="face-video" autoplay muted playsinline style="display:none;"></video>
             
             <div id="result-card">
-                <div id="scan-time"></div>
+                <div id="status-badge" class="status-badge"></div>
                 <img id="student-photo" src="" alt="Student">
                 <div id="student-name"></div>
-                <div id="student-id"></div>
+                <div id="scan-time"></div>
             </div>
         </div>
-
-        <div class="recent-section">
-            <div class="recent-title">Recent Scans</div>
-            <div class="recent-scans-container" id="recent-scans-list">
-                <!-- Mini ID cards will populate here -->
-            </div>
-        </div>
+        <p style="margin-top: 15px; color: rgba(255,255,255,0.7);" id="status-text">Ready to scan.</p>
     </div>
 
-    <!-- Subtle Floating Action Buttons -->
-    <div class="tools-container">
-        <button class="tool-btn" data-tooltip="Sync Database" onclick="syncData()">🔄</button>
-        <a href="admin.html" class="tool-btn" data-tooltip="Admin Dashboard">⚙️</a>
-    </div>
+    <a href="admin.html" class="admin-link">⚙️ Admin</a>
 
     <script src="app.js"></script>
     <script>
-        const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-        
         let isCooldown = false; 
         let displayTimeout = null; 
-        let recentScans = JSON.parse(localStorage.getItem('recentScans') || '[]');
+        let currentMode = 'qr';
+        const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        
+        // Face AI Data
+        let faceMatcher = null;
+        let faceInterval = null;
 
-        // Voice Setup
+        // Initialize Audio
         let femaleVoice = null;
-        function loadVoices() {
+        window.speechSynthesis.onvoiceschanged = () => {
             const voices = window.speechSynthesis.getVoices();
-            femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Jenny') || v.name.includes('Karen') || v.name.includes('Victoria'));
-            if (!femaleVoice) femaleVoice = voices.find(v => v.lang.startsWith('en-'));
-        }
-        window.speechSynthesis.onvoiceschanged = loadVoices;
+            femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Jenny')) || voices.find(v => v.lang.startsWith('en-'));
+        };
 
-        renderRecentScans();
+        // Load models on startup
+        Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/')
+        ]).then(() => { buildFaceMatcher(); });
+
+        function buildFaceMatcher() {
+            const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
+            const labeledDescriptors = [];
+            for (let id in localData) {
+                if (localData[id].face) {
+                    const descArray = new Float32Array(JSON.parse(localData[id].face));
+                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(id, [descArray]));
+                }
+            }
+            if(labeledDescriptors.length > 0) faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // 0.55 is strictness
+        }
 
         function syncData() {
-            const progressBar = document.getElementById('fb-progress');
-            progressBar.style.width = '20%'; 
-
-            const formData = new FormData();
-            formData.append('action', 'sync');
-            
-            setTimeout(() => { if(progressBar.style.width === '20%') progressBar.style.width = '70%'; }, 1000);
-
+            Swal.fire({ title: 'Downloading Database...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            const formData = new FormData(); formData.append('action', 'sync');
             fetch(SCRIPT_URL, { method: 'POST', body: formData })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        progressBar.style.width = '100%'; 
                         localStorage.setItem('localStudents', JSON.stringify(data.students));
-                        setTimeout(() => { progressBar.style.width = '0%'; }, 500); 
+                        buildFaceMatcher(); // Rebuild AI mapping
+                        Swal.fire('Synced!', 'Database is up to date.', 'success');
                     }
-                })
-                .catch(() => {
-                    progressBar.style.background = 'red';
-                    setTimeout(() => { progressBar.style.width = '0%'; progressBar.style.background = '#42b72a'; }, 1500);
                 });
         }
 
-        function renderRecentScans() {
-            const container = document.getElementById('recent-scans-list');
-            container.innerHTML = '';
+        // --- MODE SWITCHING LOGIC ---
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-qr').classList.toggle('active', mode === 'qr');
+            document.getElementById('btn-face').classList.toggle('active', mode === 'face');
             
-            recentScans.forEach(scan => {
-                container.innerHTML += `
-                    <div class="mini-card">
-                        <img src="${scan.photo}">
-                        <div class="mini-name">${scan.name}</div>
-                        <div class="mini-time">${scan.time}</div>
-                    </div>
-                `;
-            });
+            if(mode === 'qr') {
+                document.getElementById('face-video').style.display = 'none';
+                document.getElementById('reader').style.display = 'block';
+                if(faceInterval) clearInterval(faceInterval);
+                html5QrcodeScanner.resume();
+            } else {
+                document.getElementById('reader').style.display = 'none';
+                document.getElementById('face-video').style.display = 'block';
+                html5QrcodeScanner.pause();
+                startFaceScanner();
+            }
         }
 
-        function onScanSuccess(decodedText) {
-            if (isCooldown) return;
+        async function startFaceScanner() {
+            if(!faceMatcher) {
+                Swal.fire('No Faces Registered', 'Please sync the database or add students with photos in the admin panel first.', 'warning');
+                setMode('qr'); return;
+            }
+            const video = document.getElementById('face-video');
+            navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { video.srcObject = stream; });
             
+            document.getElementById('status-text').innerText = "Look into the camera...";
+            
+            faceInterval = setInterval(async () => {
+                if(isCooldown) return;
+                const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+                if(detection) {
+                    const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+                    if(bestMatch.label !== "unknown") {
+                        processAttendance(bestMatch.label); // The label is the Student ID
+                    }
+                }
+            }, 500); // Check every half second
+        }
+
+        // --- CORE SCAN LOGIC (Triggered by QR or Face) ---
+        function processAttendance(studentId) {
+            if (isCooldown) return;
             isCooldown = true;
-            html5QrcodeScanner.pause();
-            if (!femaleVoice) loadVoices(); 
+            if(currentMode === 'qr') html5QrcodeScanner.pause();
 
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
-            const student = localData[decodedText];
+            const student = localData[studentId];
 
             if (student) {
                 if (displayTimeout) clearTimeout(displayTimeout);
 
                 const card = document.getElementById('result-card');
-                card.classList.remove('pop-in');
-                void card.offsetWidth; 
-                card.classList.add('pop-in');
-                card.style.display = 'flex'; // Use flex to center overlay content
+                card.classList.remove('pop-in'); void card.offsetWidth; card.classList.add('pop-in');
+                card.style.display = 'flex';
 
                 const now = new Date();
                 const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-                const hour = now.getHours();
-                let greeting = "Good evening";
-                if (hour < 12) greeting = "Good morning";
-                else if (hour < 18) greeting = "Good afternoon";
+                // Check local history to toggle In/Out instantly for UI (backend handles true log)
+                const history = JSON.parse(localStorage.getItem('attHistory') || '{}');
+                let status = history[studentId] === 'Arrived' ? 'Left' : 'Arrived';
+                history[studentId] = status;
+                localStorage.setItem('attHistory', JSON.stringify(history));
 
+                // Audio Announce
                 window.speechSynthesis.cancel();
-                const speech = new SpeechSynthesisUtterance(greeting + ", " + student.name);
+                const speech = new SpeechSynthesisUtterance(`${student.name}, ${status}`);
                 if (femaleVoice) speech.voice = femaleVoice;
                 speech.rate = 0.9; speech.pitch = 1.1;
                 window.speechSynthesis.speak(speech);
 
-                document.getElementById('scan-time').innerText = "Logged at " + timeString;
+                // Update UI
+                const badge = document.getElementById('status-badge');
+                badge.innerText = status === 'Arrived' ? "🟢 Time In" : "🔴 Time Out";
+                badge.className = status === 'Arrived' ? "status-badge status-in" : "status-badge status-out";
+                
+                document.getElementById('scan-time').innerText = timeString;
                 document.getElementById('student-name').innerText = student.name;
-                document.getElementById('student-id').innerText = "ID: " + decodedText;
                 document.getElementById('student-photo').src = student.photo;
 
-                recentScans.unshift({ name: student.name, photo: student.photo, time: timeString });
-                if (recentScans.length > 10) recentScans.pop(); 
-                localStorage.setItem('recentScans', JSON.stringify(recentScans));
-                renderRecentScans();
-
+                // Push log & trigger email in background
                 const logData = new FormData();
                 logData.append('action', 'log');
-                logData.append('id', decodedText);
+                logData.append('id', studentId);
                 logData.append('name', student.name);
+                logData.append('email', student.email || ""); // Send email to backend
                 fetch(SCRIPT_URL, { method: 'POST', body: logData });
 
-                // Scanner lens wakes up after 2 seconds to allow interruptions
-                setTimeout(() => { html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
-
-                // Overlay stays for 5 minutes (300,000 ms) unless interrupted
-                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 300000);
+                setTimeout(() => { if(currentMode==='qr') html5QrcodeScanner.resume(); isCooldown = false; }, 3000); // 3 sec cooldown
+                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 300000); // Overlay lasts 5 min
 
             } else {
-                setTimeout(() => { html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
+                Swal.fire({ icon: 'error', title: 'Invalid ID', text: `ID ${studentId} not found in system.`, timer: 2000, showConfirmButton: false });
+                setTimeout(() => { if(currentMode==='qr') html5QrcodeScanner.resume(); isCooldown = false; }, 2000);
             }
         }
         
-        html5QrcodeScanner.render(onScanSuccess);
+        // Start QR by default
+        html5QrcodeScanner.render((decodedText) => { processAttendance(decodedText); });
     </script>
 </body>
 </html>
