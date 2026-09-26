@@ -11,7 +11,7 @@
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); /* Elegant School Blue */
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
             color: white; margin: 0; padding: 0; min-height: 100vh;
         }
 
@@ -30,7 +30,7 @@
         }
         
         #reader, #face-video { width: 100%; display: block; }
-        #face-video { transform: scaleX(-1); /* Mirror camera */ }
+        #face-video { transform: scaleX(-1); } /* Mirror camera like a phone */
 
         /* Mode Switcher */
         .mode-switch { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
@@ -55,6 +55,9 @@
         #student-name { font-size: 28px; font-weight: 800; color: #1e3c72; margin: 15px 0 5px 0; }
         #scan-time { font-size: 16px; color: #666; font-weight: bold; }
 
+        /* Dynamic Status Text */
+        #status-text { margin-top: 15px; font-size: 18px; font-weight: bold; color: #ffeb3b; }
+
         .admin-link { position: fixed; bottom: 20px; right: 20px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 14px; }
         .admin-link:hover { color: white; }
     </style>
@@ -73,9 +76,7 @@
         </div>
 
         <div class="scanner-wrapper">
-            <!-- QR Scanner Div -->
             <div id="reader"></div>
-            <!-- Face Scanner Video -->
             <video id="face-video" autoplay muted playsinline style="display:none;"></video>
             
             <div id="result-card">
@@ -85,7 +86,7 @@
                 <div id="scan-time"></div>
             </div>
         </div>
-        <p style="margin-top: 15px; color: rgba(255,255,255,0.7);" id="status-text">Ready to scan.</p>
+        <p id="status-text">System Ready. Please Sync DB first.</p>
     </div>
 
     <a href="admin.html" class="admin-link">⚙️ Admin</a>
@@ -97,34 +98,43 @@
         let currentMode = 'qr';
         const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
         
-        // Face AI Data
         let faceMatcher = null;
         let faceInterval = null;
 
-        // Initialize Audio
         let femaleVoice = null;
         window.speechSynthesis.onvoiceschanged = () => {
             const voices = window.speechSynthesis.getVoices();
             femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Jenny')) || voices.find(v => v.lang.startsWith('en-'));
         };
 
-        // Load models on startup
+        // Use the highly stable CDN
+        const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
         Promise.all([
-            faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
-            faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/'),
-            faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/')
-        ]).then(() => { buildFaceMatcher(); });
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]).then(() => { 
+            document.getElementById('status-text').innerText = "AI Models Loaded. Ready.";
+            buildFaceMatcher(); 
+        });
 
         function buildFaceMatcher() {
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
             const labeledDescriptors = [];
+            
             for (let id in localData) {
                 if (localData[id].face) {
                     const descArray = new Float32Array(JSON.parse(localData[id].face));
                     labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(id, [descArray]));
                 }
             }
-            if(labeledDescriptors.length > 0) faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // 0.55 is strictness
+            
+            if(labeledDescriptors.length > 0) {
+                // 0.6 is slightly more forgiving for different lighting conditions
+                faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6); 
+            } else {
+                faceMatcher = null;
+            }
         }
 
         function syncData() {
@@ -135,13 +145,13 @@
                 .then(data => {
                     if (data.success) {
                         localStorage.setItem('localStudents', JSON.stringify(data.students));
-                        buildFaceMatcher(); // Rebuild AI mapping
+                        buildFaceMatcher(); 
+                        document.getElementById('status-text').innerText = "Database Synced!";
                         Swal.fire('Synced!', 'Database is up to date.', 'success');
                     }
                 });
         }
 
-        // --- MODE SWITCHING LOGIC ---
         function setMode(mode) {
             currentMode = mode;
             document.getElementById('btn-qr').classList.toggle('active', mode === 'qr');
@@ -150,6 +160,7 @@
             if(mode === 'qr') {
                 document.getElementById('face-video').style.display = 'none';
                 document.getElementById('reader').style.display = 'block';
+                document.getElementById('status-text').innerText = "Show QR Code to camera";
                 if(faceInterval) clearInterval(faceInterval);
                 html5QrcodeScanner.resume();
             } else {
@@ -168,21 +179,32 @@
             const video = document.getElementById('face-video');
             navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { video.srcObject = stream; });
             
-            document.getElementById('status-text').innerText = "Look into the camera...";
+            document.getElementById('status-text').innerText = "Looking for a face...";
+            document.getElementById('status-text').style.color = "#ffeb3b"; // Yellow
             
             faceInterval = setInterval(async () => {
                 if(isCooldown) return;
+                
                 const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+                
                 if(detection) {
                     const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+                    
                     if(bestMatch.label !== "unknown") {
-                        processAttendance(bestMatch.label); // The label is the Student ID
+                        document.getElementById('status-text').innerText = "✅ Face Matched!";
+                        document.getElementById('status-text').style.color = "#4CAF50"; // Green
+                        processAttendance(bestMatch.label); 
+                    } else {
+                        document.getElementById('status-text').innerText = "❌ Face seen, but unknown.";
+                        document.getElementById('status-text').style.color = "#f44336"; // Red
                     }
+                } else {
+                    document.getElementById('status-text').innerText = "Looking for a face...";
+                    document.getElementById('status-text').style.color = "#ffeb3b"; // Yellow
                 }
-            }, 500); // Check every half second
+            }, 600); // Check every 0.6 seconds
         }
 
-        // --- CORE SCAN LOGIC (Triggered by QR or Face) ---
         function processAttendance(studentId) {
             if (isCooldown) return;
             isCooldown = true;
@@ -201,20 +223,17 @@
                 const now = new Date();
                 const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-                // Check local history to toggle In/Out instantly for UI (backend handles true log)
                 const history = JSON.parse(localStorage.getItem('attHistory') || '{}');
                 let status = history[studentId] === 'Arrived' ? 'Left' : 'Arrived';
                 history[studentId] = status;
                 localStorage.setItem('attHistory', JSON.stringify(history));
 
-                // Audio Announce
                 window.speechSynthesis.cancel();
                 const speech = new SpeechSynthesisUtterance(`${student.name}, ${status}`);
                 if (femaleVoice) speech.voice = femaleVoice;
                 speech.rate = 0.9; speech.pitch = 1.1;
                 window.speechSynthesis.speak(speech);
 
-                // Update UI
                 const badge = document.getElementById('status-badge');
                 badge.innerText = status === 'Arrived' ? "🟢 Time In" : "🔴 Time Out";
                 badge.className = status === 'Arrived' ? "status-badge status-in" : "status-badge status-out";
@@ -223,16 +242,21 @@
                 document.getElementById('student-name').innerText = student.name;
                 document.getElementById('student-photo').src = student.photo;
 
-                // Push log & trigger email in background
                 const logData = new FormData();
                 logData.append('action', 'log');
                 logData.append('id', studentId);
                 logData.append('name', student.name);
-                logData.append('email', student.email || ""); // Send email to backend
+                logData.append('email', student.email || ""); 
                 fetch(SCRIPT_URL, { method: 'POST', body: logData });
 
-                setTimeout(() => { if(currentMode==='qr') html5QrcodeScanner.resume(); isCooldown = false; }, 3000); // 3 sec cooldown
-                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 300000); // Overlay lasts 5 min
+                setTimeout(() => { 
+                    if(currentMode==='qr') html5QrcodeScanner.resume(); 
+                    isCooldown = false; 
+                    document.getElementById('status-text').innerText = "Ready for next student.";
+                    document.getElementById('status-text').style.color = "#ffeb3b";
+                }, 3500); // 3.5 sec cooldown
+                
+                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 300000); 
 
             } else {
                 Swal.fire({ icon: 'error', title: 'Invalid ID', text: `ID ${studentId} not found in system.`, timer: 2000, showConfirmButton: false });
@@ -240,7 +264,6 @@
             }
         }
         
-        // Start QR by default
         html5QrcodeScanner.render((decodedText) => { processAttendance(decodedText); });
     </script>
 </body>
