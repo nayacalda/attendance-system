@@ -21,53 +21,72 @@
         .tab { flex: 1; text-align: center; padding: 10px; background: #f0f0f0; cursor: pointer; font-weight: bold; border-bottom: 3px solid transparent; }
         .tab.active { border-bottom: 3px solid #1a73e8; color: #1a73e8; background: white; }
 
-        /* --- NEW: SMART AUTO-CAPTURE WIZARD UI --- */
+        /* --- SMART AUTO-CAPTURE WIZARD UI --- */
         #camera-wrapper { 
             position: relative; width: 100%; max-width: 400px; margin: 15px auto; 
             overflow: hidden; border-radius: 12px; display: none; background: #000; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
         }
-        #video { width: 100%; display: block; transform: scaleX(-1); /* Mirror camera */ }
+        #video { width: 100%; display: block; transform: scaleX(-1); }
         
         /* The Darkened Oval Cutout Guide */
         .face-guide {
             position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
-            width: 200px; height: 260px; border: 4px dashed #3B82F6; border-radius: 50%;
-            box-shadow: 0 0 0 2000px rgba(0,0,0,0.7); pointer-events: none; z-index: 10;
+            width: 200px; height: 260px; border: 4px dashed rgba(255,255,255,0.4); border-radius: 50%;
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.75); pointer-events: none; z-index: 10;
             transition: 0.3s;
         }
         
-        /* Success state when aligned */
         .guide-success { 
             border-color: #10B981 !important; border-style: solid !important; 
-            box-shadow: 0 0 20px #10B981, 0 0 0 2000px rgba(0,0,0,0.7) !important; 
+            box-shadow: 0 0 15px rgba(16,185,129,0.5), 0 0 0 2000px rgba(0,0,0,0.75) !important; 
         }
 
-        /* Bouncing Arrow Indicators */
-        .arrow-indicator {
-            position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 60px; z-index: 20; animation: pulseArrow 1s infinite;
-            text-shadow: 0px 4px 10px rgba(0,0,0,0.5); pointer-events: none;
+        /* --- NEW: MODERN SLIDING DOT TARGET --- */
+        .modern-target {
+            position: absolute; top: 45%; left: 50%; /* Starts in center */
+            transform: translate(-50%, -50%);
+            width: 32px; height: 32px; z-index: 20; pointer-events: none;
+            transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); /* Smooth spring slide */
         }
-        @keyframes pulseArrow { 
-            0% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); } 
-            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 
-            100% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); } 
+        
+        /* The Outer Pulsing Ring */
+        .modern-target::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(59, 130, 246, 0.2); border: 2px solid #3B82F6; border-radius: 50%;
+            animation: pulseTarget 1.5s infinite ease-out; box-sizing: border-box;
+            transition: 0.3s;
+        }
+        
+        /* The Solid Inner Dot */
+        .modern-target::after {
+            content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 12px; height: 12px; background: #3B82F6; border-radius: 50%;
+            box-shadow: 0 0 10px #3B82F6; transition: 0.3s;
+        }
+
+        /* Green Success State when Looking at the Dot */
+        .modern-target.aligned::before { border-color: #10B981; background: rgba(16, 185, 129, 0.2); animation: none; transform: scale(1.2); }
+        .modern-target.aligned::after { background: #10B981; box-shadow: 0 0 15px #10B981; transform: translate(-50%, -50%) scale(1.3); }
+
+        @keyframes pulseTarget {
+            0% { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
         }
 
         /* Bottom Text & Progress Bar */
-        .wizard-footer { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); z-index: 15; padding: 10px 0; }
-        #wizard-text { text-align: center; color: white; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
-        .progress-bar-bg { width: 80%; height: 6px; background: rgba(255,255,255,0.2); margin: 0 auto; border-radius: 3px; overflow: hidden; }
+        .wizard-footer { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.7); z-index: 15; padding: 12px 0; }
+        #wizard-text { text-align: center; color: white; font-weight: bold; font-size: 15px; margin-bottom: 8px; letter-spacing: 0.5px; }
+        .progress-bar-bg { width: 85%; height: 6px; background: rgba(255,255,255,0.2); margin: 0 auto; border-radius: 3px; overflow: hidden; }
         #hold-progress { width: 0%; height: 100%; background: #10B981; transition: width 0.1s linear; }
 
         /* Camera Flash Effect */
-        #flash-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; opacity: 0.8; }
+        #flash-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; opacity: 0.9; }
 
         /* Progress Dots */
         .step-dots { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
-        .dot { width: 12px; height: 12px; border-radius: 50%; background: #ddd; }
-        .dot.active { background: #1a73e8; box-shadow: 0 0 5px #1a73e8; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; background: #ddd; transition: 0.3s; }
+        .dot.active { background: #1a73e8; box-shadow: 0 0 8px rgba(26,115,232,0.6); transform: scale(1.2); }
     </style>
 </head>
 <body>
@@ -101,7 +120,10 @@
             <div id="camera-wrapper">
                 <video id="video" autoplay playsinline></video>
                 <div class="face-guide" id="face-guide"></div>
-                <div class="arrow-indicator" id="arrow-indicator">🎯</div>
+                
+                <!-- The Sleek Modern Target Dot -->
+                <div class="modern-target" id="modern-target"></div>
+                
                 <div id="flash-overlay"></div>
                 
                 <div class="wizard-footer">
@@ -129,17 +151,10 @@
 
     <script src="app.js"></script>
     <script>
-        let capturedPhotoBase64 = "";
-        let faceDescriptorData = ""; 
-        let multiDescriptors = []; 
-        let captureStepIndex = 0;
-        let currentMode = 'add';
-        let localData = {};
+        let capturedPhotoBase64 = ""; let faceDescriptorData = ""; let multiDescriptors = []; 
+        let captureStepIndex = 0; let currentMode = 'add'; let localData = {};
         
-        // Auto-Capture variables
-        let framesHeld = 0;
-        const FRAMES_REQUIRED = 12; // About 1 second of holding still
-        let isCapturing = false;
+        let framesHeld = 0; const FRAMES_REQUIRED = 12; let isCapturing = false;
 
         const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
         Promise.all([
@@ -151,12 +166,10 @@
         function login() {
             Swal.fire({ title: 'Authenticating...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             const formData = new FormData(); formData.append('action', 'login');
-            formData.append('user', document.getElementById('username').value);
-            formData.append('pass', document.getElementById('password').value);
+            formData.append('user', document.getElementById('username').value); formData.append('pass', document.getElementById('password').value);
             fetch(SCRIPT_URL, { method: 'POST', body: formData }).then(res => res.json()).then(data => {
                 if (data.success) {
-                    Swal.close();
-                    document.getElementById('login-section').style.display = 'none'; document.getElementById('admin-section').style.display = 'block';
+                    Swal.close(); document.getElementById('login-section').style.display = 'none'; document.getElementById('admin-section').style.display = 'block';
                     fetchLocalData();
                 } else Swal.fire('Access Denied', 'Invalid Credentials', 'error');
             });
@@ -196,7 +209,6 @@
             document.getElementById('face-status').innerText = ''; capturedPhotoBase64 = ""; faceDescriptorData = "";
         }
 
-        // --- NEW: INITIATE SMART AUTO-CAPTURE LOOP ---
         function startCamera() {
             navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { 
                 const video = document.getElementById('video');
@@ -209,50 +221,53 @@
                 document.getElementById('start-cam-btn').style.display = 'none';
                 document.getElementById('upload-btn').style.display = 'none';
                 
-                // Start the AI loop once video plays
                 video.onplay = () => requestAnimationFrame(autoCaptureLoop);
             });
         }
 
         async function autoCaptureLoop() {
-            if (document.getElementById('camera-wrapper').style.display === 'none') return; // Stop loop if hidden
+            if (document.getElementById('camera-wrapper').style.display === 'none') return; 
             
             const video = document.getElementById('video');
             if (video.paused || video.ended || isCapturing) return;
 
-            // Detect Face AND extract landmarks to check head rotation
             const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
             
             const text = document.getElementById('wizard-text');
             const guide = document.getElementById('face-guide');
-            const arrow = document.getElementById('arrow-indicator');
+            const target = document.getElementById('modern-target');
             const progress = document.getElementById('hold-progress');
             
-            // Update UI Dots
             document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === captureStepIndex));
 
             let targetPose = captureStepIndex === 0 ? "straight" : (captureStepIndex === 1 ? "left" : "right");
 
+            // Slide the dot to the correct side of the screen
+            if (targetPose === "straight") {
+                target.style.left = "50%";
+            } else if (targetPose === "left") {
+                target.style.left = "18%"; // Slides smoothly to the left
+            } else if (targetPose === "right") {
+                target.style.left = "82%"; // Slides smoothly to the right
+            }
+
             if (detection) {
-                // Determine Head Rotation using Landmarks (Nose distance to jawlines)
                 const nose = detection.landmarks.getNose()[3];
                 const leftJaw = detection.landmarks.getJawOutline()[0];
                 const rightJaw = detection.landmarks.getJawOutline()[16];
                 
                 const leftDist = nose.x - leftJaw.x;
                 const rightDist = rightJaw.x - nose.x;
-                const ratio = leftDist / (rightDist || 1); // Avoid div by zero
+                const ratio = leftDist / (rightDist || 1); 
 
                 let currentPose = "straight";
-                // Tolerances for detecting rotation
                 if (ratio < 0.75) currentPose = "left";
                 else if (ratio > 1.35) currentPose = "right";
 
                 if (currentPose === targetPose) {
-                    // FACE IS ALIGNED!
                     framesHeld++;
                     guide.classList.add('guide-success');
-                    arrow.style.display = 'none';
+                    target.classList.add('aligned'); // Turns the dot green and stops pulsing
                     text.innerText = "Perfect! Hold still...";
                     progress.style.width = (framesHeld / FRAMES_REQUIRED) * 100 + "%";
 
@@ -261,89 +276,53 @@
                         await processCapture(detection, video); 
                     }
                 } else {
-                    // Face found, but wrong angle. Tell them where to look.
                     framesHeld = 0;
                     guide.classList.remove('guide-success');
+                    target.classList.remove('aligned');
                     progress.style.width = "0%";
-                    arrow.style.display = 'block';
                     
-                    if (targetPose === "straight") {
-                        text.innerText = "Step 1: Look Straight at camera";
-                        arrow.innerHTML = "🎯";
-                    } else if (targetPose === "left") {
-                        text.innerText = "Step 2: Turn head slightly LEFT";
-                        arrow.innerHTML = "⬅️";
-                    } else if (targetPose === "right") {
-                        text.innerText = "Step 3: Turn head slightly RIGHT";
-                        arrow.innerHTML = "➡️";
-                    }
+                    if (targetPose === "straight") text.innerText = "Step 1: Look straight at the blue dot";
+                    else if (targetPose === "left") text.innerText = "Step 2: Turn head slightly to the dot";
+                    else if (targetPose === "right") text.innerText = "Step 3: Turn head slightly to the dot";
                 }
             } else {
-                // No Face Detected
-                framesHeld = 0;
-                progress.style.width = "0%";
-                guide.classList.remove('guide-success');
+                framesHeld = 0; progress.style.width = "0%";
+                guide.classList.remove('guide-success'); target.classList.remove('aligned');
                 text.innerText = "No face detected. Get inside the oval.";
-                arrow.style.display = 'none';
             }
 
-            // Loop
-            if (captureStepIndex < 3) {
-                requestAnimationFrame(autoCaptureLoop);
-            }
+            if (captureStepIndex < 3) requestAnimationFrame(autoCaptureLoop);
         }
 
         async function processCapture(detection, video) {
-            // Screen Flash effect
             const flash = document.getElementById('flash-overlay');
-            flash.style.display = 'block';
-            setTimeout(() => flash.style.display = 'none', 100);
+            flash.style.display = 'block'; setTimeout(() => flash.style.display = 'none', 100);
 
             if (captureStepIndex === 0) {
-                // Save front-facing photo as Profile Picture
                 const box = detection.detection.box;
-                const canvas = document.getElementById('canvas');
-                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                
-                // Draw RAW unmirrored video to extract proper crop
+                const canvas = document.getElementById('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 canvas.getContext('2d').drawImage(video, 0, 0);
                 
-                const cropCanvas = document.createElement('canvas');
-                cropCanvas.width = 250; cropCanvas.height = 250;
-                
-                // Draw mirrored final crop so it matches what user saw on screen
-                const cropCtx = cropCanvas.getContext('2d');
-                cropCtx.translate(250, 0); cropCtx.scale(-1, 1);
+                const cropCanvas = document.createElement('canvas'); cropCanvas.width = 250; cropCanvas.height = 250;
+                const cropCtx = cropCanvas.getContext('2d'); cropCtx.translate(250, 0); cropCtx.scale(-1, 1);
                 cropCtx.drawImage(canvas, box.x - 50, box.y - 50, box.width + 100, box.height + 100, 0, 0, 250, 250);
-                
                 capturedPhotoBase64 = cropCanvas.toDataURL('image/jpeg', 0.8);
             }
 
             multiDescriptors.push(Array.from(detection.descriptor));
-            captureStepIndex++;
-            framesHeld = 0;
+            captureStepIndex++; framesHeld = 0;
 
             if (captureStepIndex >= 3) {
-                // Finished all 3 angles!
                 faceDescriptorData = JSON.stringify(multiDescriptors);
-                document.getElementById('preview').src = capturedPhotoBase64;
-                document.getElementById('preview').style.display = 'block';
-                document.getElementById('face-status').innerText = "✅ Smart Biometrics Successfully Registered!";
-                document.getElementById('face-status').style.color = "green";
+                document.getElementById('preview').src = capturedPhotoBase64; document.getElementById('preview').style.display = 'block';
+                document.getElementById('face-status').innerText = "✅ Smart Biometrics Successfully Registered!"; document.getElementById('face-status').style.color = "green";
                 
                 video.srcObject.getTracks().forEach(track => track.stop()); 
-                document.getElementById('camera-wrapper').style.display = 'none';
-                document.getElementById('step-dots').style.display = 'none';
-                
-                document.getElementById('start-cam-btn').style.display = 'block';
-                document.getElementById('start-cam-btn').innerText = "📷 Retake Photos";
+                document.getElementById('camera-wrapper').style.display = 'none'; document.getElementById('step-dots').style.display = 'none';
+                document.getElementById('start-cam-btn').style.display = 'block'; document.getElementById('start-cam-btn').innerText = "📷 Retake Photos";
                 Swal.fire({ icon: 'success', title: 'Complete!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
             } else {
-                // Pause for 1 second before tracking the next angle
-                setTimeout(() => { 
-                    isCapturing = false; 
-                    requestAnimationFrame(autoCaptureLoop); 
-                }, 1000);
+                setTimeout(() => { isCapturing = false; requestAnimationFrame(autoCaptureLoop); }, 800);
             }
         }
 
@@ -355,10 +334,8 @@
                 const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
                 if (detection) {
                     const canvas = document.getElementById('canvas'); canvas.width = 250; canvas.height = 250;
-                    canvas.getContext('2d').drawImage(img, 0, 0, 250, 250);
-                    capturedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    canvas.getContext('2d').drawImage(img, 0, 0, 250, 250); capturedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
                     faceDescriptorData = JSON.stringify([Array.from(detection.descriptor)]);
-                    
                     document.getElementById('preview').src = capturedPhotoBase64; document.getElementById('preview').style.display = 'block';
                     document.getElementById('face-status').innerText = "✅ Single-Angle Biometric Extracted"; document.getElementById('face-status').style.color = "green";
                 } else { Swal.fire('Error', 'No face found.', 'error'); }
