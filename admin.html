@@ -16,27 +16,54 @@
         
         .btn-secondary { background: #e0e0e0; color: #333; }
         .btn-secondary:hover { background: #d0d0d0; }
-        .btn-success { background: #28a745; color: white; display: none; margin-top: 20px;}
-        .btn-success:hover { background: #218838; }
         
         .tabs { display: flex; margin-bottom: 20px; }
         .tab { flex: 1; text-align: center; padding: 10px; background: #f0f0f0; cursor: pointer; font-weight: bold; border-bottom: 3px solid transparent; }
         .tab.active { border-bottom: 3px solid #1a73e8; color: #1a73e8; background: white; }
 
-        /* --- NEW: CAMERA WIZARD STYLES --- */
-        #camera-wrapper { position: relative; width: 100%; max-width: 400px; margin: 15px auto; overflow: hidden; border-radius: 12px; display: none; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        #video { width: 100%; display: block; transform: scaleX(-1); /* Mirror */ }
+        /* --- NEW: SMART AUTO-CAPTURE WIZARD UI --- */
+        #camera-wrapper { 
+            position: relative; width: 100%; max-width: 400px; margin: 15px auto; 
+            overflow: hidden; border-radius: 12px; display: none; background: #000; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
+        }
+        #video { width: 100%; display: block; transform: scaleX(-1); /* Mirror camera */ }
         
         /* The Darkened Oval Cutout Guide */
         .face-guide {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
             width: 200px; height: 260px; border: 4px dashed #3B82F6; border-radius: 50%;
-            box-shadow: 0 0 0 2000px rgba(0,0,0,0.65); /* Darkens everything outside the oval */
-            pointer-events: none; z-index: 10;
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.7); pointer-events: none; z-index: 10;
+            transition: 0.3s;
         }
         
-        #wizard-text { position: absolute; bottom: 15px; left: 0; width: 100%; text-align: center; color: white; font-weight: bold; font-size: 16px; z-index: 15; text-shadow: 0px 2px 4px rgba(0,0,0,0.8); }
-        
+        /* Success state when aligned */
+        .guide-success { 
+            border-color: #10B981 !important; border-style: solid !important; 
+            box-shadow: 0 0 20px #10B981, 0 0 0 2000px rgba(0,0,0,0.7) !important; 
+        }
+
+        /* Bouncing Arrow Indicators */
+        .arrow-indicator {
+            position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 60px; z-index: 20; animation: pulseArrow 1s infinite;
+            text-shadow: 0px 4px 10px rgba(0,0,0,0.5); pointer-events: none;
+        }
+        @keyframes pulseArrow { 
+            0% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); } 
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 
+            100% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); } 
+        }
+
+        /* Bottom Text & Progress Bar */
+        .wizard-footer { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); z-index: 15; padding: 10px 0; }
+        #wizard-text { text-align: center; color: white; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+        .progress-bar-bg { width: 80%; height: 6px; background: rgba(255,255,255,0.2); margin: 0 auto; border-radius: 3px; overflow: hidden; }
+        #hold-progress { width: 0%; height: 100%; background: #10B981; transition: width 0.1s linear; }
+
+        /* Camera Flash Effect */
+        #flash-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; opacity: 0.8; }
+
         /* Progress Dots */
         .step-dots { display: flex; justify-content: center; gap: 8px; margin-top: 15px; }
         .dot { width: 12px; height: 12px; border-radius: 50%; background: #ddd; }
@@ -68,13 +95,19 @@
             
             <p style="font-size: 14px; color: gray; margin-bottom: 0;">Multi-Angle Biometric Registration:</p>
             
-            <button class="btn-secondary" onclick="startCamera()" id="start-cam-btn">📷 1. Start Camera</button>
+            <button class="btn-secondary" onclick="startCamera()" id="start-cam-btn">🤖 Start Auto-Capture AI</button>
             
-            <!-- GUIDED CAMERA UI -->
+            <!-- SMART GUIDED CAMERA UI -->
             <div id="camera-wrapper">
                 <video id="video" autoplay playsinline></video>
-                <div class="face-guide"></div>
-                <div id="wizard-text">Step 1: Look straight ahead</div>
+                <div class="face-guide" id="face-guide"></div>
+                <div class="arrow-indicator" id="arrow-indicator">🎯</div>
+                <div id="flash-overlay"></div>
+                
+                <div class="wizard-footer">
+                    <div id="wizard-text">Loading AI...</div>
+                    <div class="progress-bar-bg"><div id="hold-progress"></div></div>
+                </div>
             </div>
             
             <div class="step-dots" id="step-dots" style="display:none;">
@@ -82,14 +115,12 @@
                 <div class="dot" id="dot-1"></div>
                 <div class="dot" id="dot-2"></div>
             </div>
-
-            <button class="btn-success" id="snap-btn" onclick="captureStep()">📸 Capture Front Face</button>
             
             <button class="btn-secondary" onclick="document.getElementById('file-upload').click()" id="upload-btn">📁 Or Upload Picture (Lower Accuracy)</button>
             <input type="file" id="file-upload" accept="image/*" style="display:none;" onchange="handleFileUpload(event)">
             
             <canvas id="canvas" style="display:none;"></canvas>
-            <img id="preview" style="display:none; max-width: 200px; margin: 15px auto; border-radius: 8px; border: 3px solid #28a745;">
+            <img id="preview" style="display:none; max-width: 200px; margin: 15px auto; border-radius: 8px; border: 3px solid #10B981;">
             <p id="face-status" style="text-align: center; font-weight: bold; color: orange; font-size: 14px;"></p>
             
             <button onclick="saveStudent()" id="save-btn">Save New Student</button>
@@ -100,10 +131,15 @@
     <script>
         let capturedPhotoBase64 = "";
         let faceDescriptorData = ""; 
-        let multiDescriptors = []; // Holds the 3 different angles
+        let multiDescriptors = []; 
         let captureStepIndex = 0;
         let currentMode = 'add';
         let localData = {};
+        
+        // Auto-Capture variables
+        let framesHeld = 0;
+        const FRAMES_REQUIRED = 12; // About 1 second of holding still
+        let isCapturing = false;
 
         const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
         Promise.all([
@@ -114,15 +150,13 @@
 
         function login() {
             Swal.fire({ title: 'Authenticating...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            const formData = new FormData();
-            formData.append('action', 'login');
+            const formData = new FormData(); formData.append('action', 'login');
             formData.append('user', document.getElementById('username').value);
             formData.append('pass', document.getElementById('password').value);
             fetch(SCRIPT_URL, { method: 'POST', body: formData }).then(res => res.json()).then(data => {
                 if (data.success) {
                     Swal.close();
-                    document.getElementById('login-section').style.display = 'none';
-                    document.getElementById('admin-section').style.display = 'block';
+                    document.getElementById('login-section').style.display = 'none'; document.getElementById('admin-section').style.display = 'block';
                     fetchLocalData();
                 } else Swal.fire('Access Denied', 'Invalid Credentials', 'error');
             });
@@ -130,38 +164,28 @@
 
         function fetchLocalData() {
             const formData = new FormData(); formData.append('action', 'sync');
-            fetch(SCRIPT_URL, { method: 'POST', body: formData }).then(res => res.json()).then(data => {
-                localData = data.students; updateEditDropdown();
-            });
+            fetch(SCRIPT_URL, { method: 'POST', body: formData }).then(res => res.json()).then(data => { localData = data.students; updateEditDropdown(); });
         }
 
         function switchTab(mode) {
             currentMode = mode;
-            document.getElementById('tab-add').classList.toggle('active', mode === 'add');
-            document.getElementById('tab-edit').classList.toggle('active', mode === 'edit');
-            document.getElementById('edit-selector').style.display = mode === 'edit' ? 'block' : 'none';
-            document.getElementById('student-id').disabled = mode === 'edit';
+            document.getElementById('tab-add').classList.toggle('active', mode === 'add'); document.getElementById('tab-edit').classList.toggle('active', mode === 'edit');
+            document.getElementById('edit-selector').style.display = mode === 'edit' ? 'block' : 'none'; document.getElementById('student-id').disabled = mode === 'edit';
             document.getElementById('save-btn').innerText = mode === 'add' ? 'Save New Student' : 'Update Student';
             if(mode === 'add') clearForm();
         }
 
         function updateEditDropdown() {
-            const sel = document.getElementById('edit-selector');
-            sel.innerHTML = '<option value="">-- Select Student to Edit --</option>';
+            const sel = document.getElementById('edit-selector'); sel.innerHTML = '<option value="">-- Select Student to Edit --</option>';
             for (let id in localData) { sel.innerHTML += `<option value="${id}">${id} - ${localData[id].name}</option>`; }
         }
 
         function loadStudentToEdit() {
-            const id = document.getElementById('edit-selector').value;
-            if(!id) return clearForm();
+            const id = document.getElementById('edit-selector').value; if(!id) return clearForm();
             const s = localData[id];
-            document.getElementById('student-id').value = id;
-            document.getElementById('student-name').value = s.name;
-            document.getElementById('student-email').value = s.email || '';
-            document.getElementById('preview').src = s.photo;
-            document.getElementById('preview').style.display = 'block';
-            capturedPhotoBase64 = s.photo;
-            faceDescriptorData = ""; // Must retake to change biometrics
+            document.getElementById('student-id').value = id; document.getElementById('student-name').value = s.name;
+            document.getElementById('student-email').value = s.email || ''; document.getElementById('preview').src = s.photo;
+            document.getElementById('preview').style.display = 'block'; capturedPhotoBase64 = s.photo; faceDescriptorData = ""; 
             document.getElementById('face-status').innerText = "Current photo loaded. Take new photos to update biometrics.";
             document.getElementById('face-status').style.color = "blue";
         }
@@ -172,96 +196,154 @@
             document.getElementById('face-status').innerText = ''; capturedPhotoBase64 = ""; faceDescriptorData = "";
         }
 
+        // --- NEW: INITIATE SMART AUTO-CAPTURE LOOP ---
         function startCamera() {
             navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { 
                 const video = document.getElementById('video');
                 video.srcObject = stream; 
                 
-                // Reset Wizard State
-                multiDescriptors = [];
-                captureStepIndex = 0;
-                updateWizardUI();
+                multiDescriptors = []; captureStepIndex = 0; framesHeld = 0; isCapturing = false;
                 
                 document.getElementById('camera-wrapper').style.display = 'block';
                 document.getElementById('step-dots').style.display = 'flex';
-                document.getElementById('snap-btn').style.display = 'block';
                 document.getElementById('start-cam-btn').style.display = 'none';
                 document.getElementById('upload-btn').style.display = 'none';
+                
+                // Start the AI loop once video plays
+                video.onplay = () => requestAnimationFrame(autoCaptureLoop);
             });
         }
 
-        function updateWizardUI() {
-            const text = document.getElementById('wizard-text');
-            const btn = document.getElementById('snap-btn');
-            document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === captureStepIndex));
+        async function autoCaptureLoop() {
+            if (document.getElementById('camera-wrapper').style.display === 'none') return; // Stop loop if hidden
             
-            if(captureStepIndex === 0) {
-                text.innerText = "Step 1: Look straight ahead";
-                btn.innerText = "📸 Capture Front Face";
-            } else if (captureStepIndex === 1) {
-                text.innerText = "Step 2: Turn head slightly LEFT";
-                btn.innerText = "📸 Capture Left Side";
-            } else if (captureStepIndex === 2) {
-                text.innerText = "Step 3: Turn head slightly RIGHT";
-                btn.innerText = "📸 Capture Right Side";
+            const video = document.getElementById('video');
+            if (video.paused || video.ended || isCapturing) return;
+
+            // Detect Face AND extract landmarks to check head rotation
+            const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+            
+            const text = document.getElementById('wizard-text');
+            const guide = document.getElementById('face-guide');
+            const arrow = document.getElementById('arrow-indicator');
+            const progress = document.getElementById('hold-progress');
+            
+            // Update UI Dots
+            document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === captureStepIndex));
+
+            let targetPose = captureStepIndex === 0 ? "straight" : (captureStepIndex === 1 ? "left" : "right");
+
+            if (detection) {
+                // Determine Head Rotation using Landmarks (Nose distance to jawlines)
+                const nose = detection.landmarks.getNose()[3];
+                const leftJaw = detection.landmarks.getJawOutline()[0];
+                const rightJaw = detection.landmarks.getJawOutline()[16];
+                
+                const leftDist = nose.x - leftJaw.x;
+                const rightDist = rightJaw.x - nose.x;
+                const ratio = leftDist / (rightDist || 1); // Avoid div by zero
+
+                let currentPose = "straight";
+                // Tolerances for detecting rotation
+                if (ratio < 0.75) currentPose = "left";
+                else if (ratio > 1.35) currentPose = "right";
+
+                if (currentPose === targetPose) {
+                    // FACE IS ALIGNED!
+                    framesHeld++;
+                    guide.classList.add('guide-success');
+                    arrow.style.display = 'none';
+                    text.innerText = "Perfect! Hold still...";
+                    progress.style.width = (framesHeld / FRAMES_REQUIRED) * 100 + "%";
+
+                    if (framesHeld >= FRAMES_REQUIRED) {
+                        isCapturing = true;
+                        await processCapture(detection, video); 
+                    }
+                } else {
+                    // Face found, but wrong angle. Tell them where to look.
+                    framesHeld = 0;
+                    guide.classList.remove('guide-success');
+                    progress.style.width = "0%";
+                    arrow.style.display = 'block';
+                    
+                    if (targetPose === "straight") {
+                        text.innerText = "Step 1: Look Straight at camera";
+                        arrow.innerHTML = "🎯";
+                    } else if (targetPose === "left") {
+                        text.innerText = "Step 2: Turn head slightly LEFT";
+                        arrow.innerHTML = "⬅️";
+                    } else if (targetPose === "right") {
+                        text.innerText = "Step 3: Turn head slightly RIGHT";
+                        arrow.innerHTML = "➡️";
+                    }
+                }
+            } else {
+                // No Face Detected
+                framesHeld = 0;
+                progress.style.width = "0%";
+                guide.classList.remove('guide-success');
+                text.innerText = "No face detected. Get inside the oval.";
+                arrow.style.display = 'none';
+            }
+
+            // Loop
+            if (captureStepIndex < 3) {
+                requestAnimationFrame(autoCaptureLoop);
             }
         }
 
-        async function captureStep() {
-            const btn = document.getElementById('snap-btn');
-            btn.disabled = true; btn.innerText = "Analyzing...";
-            document.getElementById('face-status').innerText = "";
-            
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
-            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-            
-            // Draw mirrored image so it extracts correctly
-            const ctx = canvas.getContext('2d');
-            ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
-            ctx.drawImage(video, 0, 0);
+        async function processCapture(detection, video) {
+            // Screen Flash effect
+            const flash = document.getElementById('flash-overlay');
+            flash.style.display = 'block';
+            setTimeout(() => flash.style.display = 'none', 100);
 
-            const detection = await faceapi.detectSingleFace(canvas).withFaceLandmarks().withFaceDescriptor();
-            
-            if (detection) {
-                // If this is the Front Face (Step 0), save it as the official ID Profile Picture
-                if (captureStepIndex === 0) {
-                    const box = detection.detection.box;
-                    const cropCanvas = document.createElement('canvas');
-                    cropCanvas.width = 250; cropCanvas.height = 250;
-                    cropCanvas.getContext('2d').drawImage(canvas, box.x - 50, box.y - 50, box.width + 100, box.height + 100, 0, 0, 250, 250);
-                    capturedPhotoBase64 = cropCanvas.toDataURL('image/jpeg', 0.8);
-                }
+            if (captureStepIndex === 0) {
+                // Save front-facing photo as Profile Picture
+                const box = detection.detection.box;
+                const canvas = document.getElementById('canvas');
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 
-                // Add this angle's mathematical data to the array
-                multiDescriptors.push(Array.from(detection.descriptor));
+                // Draw RAW unmirrored video to extract proper crop
+                canvas.getContext('2d').drawImage(video, 0, 0);
                 
-                captureStepIndex++;
+                const cropCanvas = document.createElement('canvas');
+                cropCanvas.width = 250; cropCanvas.height = 250;
                 
-                if (captureStepIndex < 3) {
-                    updateWizardUI();
-                    btn.disabled = false;
-                } else {
-                    // Registration Complete!
-                    faceDescriptorData = JSON.stringify(multiDescriptors); // Save all 3 angles
-                    
-                    document.getElementById('preview').src = capturedPhotoBase64;
-                    document.getElementById('preview').style.display = 'block';
-                    document.getElementById('face-status').innerText = "✅ 3D Biometrics Successfully Registered!";
-                    document.getElementById('face-status').style.color = "green";
-                    
-                    video.srcObject.getTracks().forEach(track => track.stop()); 
-                    document.getElementById('camera-wrapper').style.display = 'none';
-                    document.getElementById('step-dots').style.display = 'none';
-                    btn.style.display = 'none';
-                    
-                    document.getElementById('start-cam-btn').style.display = 'block';
-                    document.getElementById('start-cam-btn').innerText = "📷 Retake Photos";
-                    Swal.fire({ icon: 'success', title: 'Complete!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
-                }
+                // Draw mirrored final crop so it matches what user saw on screen
+                const cropCtx = cropCanvas.getContext('2d');
+                cropCtx.translate(250, 0); cropCtx.scale(-1, 1);
+                cropCtx.drawImage(canvas, box.x - 50, box.y - 50, box.width + 100, box.height + 100, 0, 0, 250, 250);
+                
+                capturedPhotoBase64 = cropCanvas.toDataURL('image/jpeg', 0.8);
+            }
+
+            multiDescriptors.push(Array.from(detection.descriptor));
+            captureStepIndex++;
+            framesHeld = 0;
+
+            if (captureStepIndex >= 3) {
+                // Finished all 3 angles!
+                faceDescriptorData = JSON.stringify(multiDescriptors);
+                document.getElementById('preview').src = capturedPhotoBase64;
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('face-status').innerText = "✅ Smart Biometrics Successfully Registered!";
+                document.getElementById('face-status').style.color = "green";
+                
+                video.srcObject.getTracks().forEach(track => track.stop()); 
+                document.getElementById('camera-wrapper').style.display = 'none';
+                document.getElementById('step-dots').style.display = 'none';
+                
+                document.getElementById('start-cam-btn').style.display = 'block';
+                document.getElementById('start-cam-btn').innerText = "📷 Retake Photos";
+                Swal.fire({ icon: 'success', title: 'Complete!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
             } else {
-                Swal.fire('No Face Detected', 'Ensure you are inside the oval and well-lit.', 'error');
-                updateWizardUI(); btn.disabled = false;
+                // Pause for 1 second before tracking the next angle
+                setTimeout(() => { 
+                    isCapturing = false; 
+                    requestAnimationFrame(autoCaptureLoop); 
+                }, 1000);
             }
         }
 
@@ -272,38 +354,27 @@
                 document.getElementById('face-status').innerText = "Analyzing...";
                 const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
                 if (detection) {
-                    const canvas = document.getElementById('canvas');
-                    canvas.width = 250; canvas.height = 250;
+                    const canvas = document.getElementById('canvas'); canvas.width = 250; canvas.height = 250;
                     canvas.getContext('2d').drawImage(img, 0, 0, 250, 250);
                     capturedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
-                    
-                    // Save as a 1-item array for backwards compatibility
                     faceDescriptorData = JSON.stringify([Array.from(detection.descriptor)]);
                     
-                    document.getElementById('preview').src = capturedPhotoBase64;
-                    document.getElementById('preview').style.display = 'block';
-                    document.getElementById('face-status').innerText = "✅ Single-Angle Biometric Extracted";
-                    document.getElementById('face-status').style.color = "green";
-                } else {
-                    Swal.fire('Error', 'No face found.', 'error');
-                }
+                    document.getElementById('preview').src = capturedPhotoBase64; document.getElementById('preview').style.display = 'block';
+                    document.getElementById('face-status').innerText = "✅ Single-Angle Biometric Extracted"; document.getElementById('face-status').style.color = "green";
+                } else { Swal.fire('Error', 'No face found.', 'error'); }
             }
         }
 
         function saveStudent() {
-            const id = document.getElementById('student-id').value;
-            const name = document.getElementById('student-name').value;
+            const id = document.getElementById('student-id').value; const name = document.getElementById('student-name').value;
             const email = document.getElementById('student-email').value;
-
             if (!id || !name || !capturedPhotoBase64) return Swal.fire('Missing Info', 'ID, Name, and Photo are required.', 'warning');
             if (currentMode === 'add' && localData[id]) return Swal.fire('Error', 'Duplicate ID.', 'error');
 
             Swal.fire({ title: 'Saving Data...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-            const formData = new FormData();
-            formData.append('action', currentMode === 'add' ? 'addStudent' : 'editStudent');
-            formData.append('id', id); formData.append('name', name);
-            formData.append('email', email); formData.append('photo', capturedPhotoBase64);
+            const formData = new FormData(); formData.append('action', currentMode === 'add' ? 'addStudent' : 'editStudent');
+            formData.append('id', id); formData.append('name', name); formData.append('email', email); formData.append('photo', capturedPhotoBase64);
             if(faceDescriptorData) formData.append('face', faceDescriptorData);
 
             fetch(SCRIPT_URL, { method: 'POST', body: formData }).then(res => res.json()).then(data => {
