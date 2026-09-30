@@ -11,25 +11,17 @@
     <style>
         /* --- MODERN UI VARIABLES --- */
         :root {
-            --bg-color: #F3F4F6;
-            --card-bg: #FFFFFF;
-            --text-main: #1F2937;
-            --text-muted: #6B7280;
-            --primary: #3B82F6;
-            --success: #10B981;
-            --danger: #EF4444;
-            --radius-lg: 24px;
-            --radius-md: 16px;
+            --bg-color: #F3F4F6; --card-bg: #FFFFFF; --text-main: #1F2937;
+            --text-muted: #6B7280; --primary: #3B82F6; --success: #10B981; --danger: #EF4444;
+            --radius-lg: 24px; --radius-md: 16px;
             --shadow-soft: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
         }
 
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: var(--bg-color); color: var(--text-main);
-            margin: 0; padding: 0; min-height: 100vh;
+            background: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; min-height: 100vh;
         }
 
-        /* --- HEADER --- */
         .header { 
             background: var(--card-bg); padding: 15px 30px; display: flex; justify-content: space-between; 
             align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 50;
@@ -40,7 +32,6 @@
 
         .main-container { max-width: 1000px; margin: 30px auto; text-align: center; padding: 0 15px; }
 
-        /* --- MODE SWITCHER --- */
         .mode-switch { display: inline-flex; background: #E5E7EB; padding: 4px; border-radius: 30px; margin-bottom: 25px; }
         .mode-btn { background: transparent; color: var(--text-muted); border: none; padding: 10px 24px; border-radius: 26px; cursor: pointer; font-size: 15px; font-weight: 600; transition: 0.3s; }
         .mode-btn.active { background: var(--card-bg); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -54,27 +45,33 @@
         }
         
         #reader { width: 100%; }
-        
-        /* ALIGNMENT FIX: Both video and canvas must have identical positioning and object-fit */
         #face-video, #face-canvas { 
-            position: absolute; top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            object-fit: cover; /* Forces them to stretch identically */
-            transform: scaleX(-1); /* Mirrors the image */
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            object-fit: cover; transform: scaleX(-1); 
         }
         #face-canvas { z-index: 10; pointer-events: none; }
 
         /* --- GLASSMORPHISM RESULT CARD --- */
         #result-card { 
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             z-index: 20; color: var(--text-main);
             flex-direction: column; align-items: center; justify-content: center;
             border-radius: var(--radius-lg);
         }
 
-        .pop-in { animation: popIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        @keyframes popIn { 0% { opacity: 0; transform: scale(0.9); } 100% { opacity: 1; transform: scale(1); } }
+        /* NEW ANIMATIONS: Entry and Exit sliding into the grid */
+        .slide-in { animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideIn { 
+            0% { opacity: 0; transform: translateY(-40px) scale(0.95); } 
+            100% { opacity: 1; transform: translateY(0) scale(1); } 
+        }
+
+        .slide-to-grid { animation: slideToGrid 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideToGrid {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(200px) scale(0.3); } /* Falls through the bottom of the camera */
+        }
 
         .status-badge { padding: 6px 16px; border-radius: 20px; font-weight: 700; color: white; font-size: 14px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .status-in { background: var(--success); }
@@ -83,7 +80,6 @@
         #student-photo { width: 180px; height: 180px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         #student-name { font-size: 26px; font-weight: 800; margin: 15px 0 5px 0; }
         #scan-time { font-size: 15px; color: var(--text-muted); font-weight: 500; }
-
         #status-text { margin-top: 15px; font-size: 15px; font-weight: 600; color: var(--text-muted); }
 
         /* --- DAILY RECENT SCANS GRID --- */
@@ -106,6 +102,13 @@
         .mini-status { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 10px; margin-top: 8px; color: white; }
         .mini-in { background: var(--success); }
         .mini-out { background: var(--danger); }
+
+        /* Animation for new cards entering the grid */
+        .new-mini-card { animation: miniCardSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes miniCardSlide {
+            0% { opacity: 0; transform: translateX(-40px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
         
         .admin-link { position: fixed; bottom: 20px; right: 20px; background: var(--card-bg); color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600; padding: 10px 15px; border-radius: 20px; box-shadow: var(--shadow-soft); transition: 0.2s; z-index: 100; }
         .admin-link:hover { background: #E5E7EB; }
@@ -118,7 +121,6 @@
     </div>
 
     <div class="main-container">
-        
         <div class="mode-switch">
             <button class="mode-btn active" id="btn-qr" onclick="setMode('qr')">QR Scanner</button>
             <button class="mode-btn" id="btn-face" onclick="setMode('face')">Face AI Tracking</button>
@@ -126,7 +128,6 @@
 
         <div class="scanner-wrapper">
             <div id="reader"></div>
-            
             <video id="face-video" autoplay muted playsinline style="display:none;"></video>
             <canvas id="face-canvas"></canvas>
             
@@ -144,9 +145,7 @@
                 <h3 class="recent-title">Today's Scans</h3>
                 <span class="recent-count" id="scan-count">0 Scans</span>
             </div>
-            <div class="recent-grid" id="recent-grid">
-                <!-- Cards will populate here dynamically -->
-            </div>
+            <div class="recent-grid" id="recent-grid"></div>
         </div>
     </div>
 
@@ -154,24 +153,16 @@
 
     <script src="app.js"></script>
     <script>
-        let isCooldown = false; 
-        let displayTimeout = null; 
-        let currentMode = 'qr';
+        let isCooldown = false; let displayTimeout = null; let currentMode = 'qr';
         const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
         
-        let faceMatcher = null;
-        let isTracking = false; 
-        let studentCooldowns = {}; 
+        let faceMatcher = null; let isTracking = false; let studentCooldowns = {}; 
 
-        // --- DAILY RESET LOGIC ---
         function checkDailyReset() {
             const today = new Date().toDateString();
-            const lastDate = localStorage.getItem('lastScanDate');
-            if (lastDate !== today) {
-                localStorage.removeItem('recentCards');
-                localStorage.removeItem('attHistory');
-                localStorage.setItem('lastScanDate', today);
-                studentCooldowns = {}; 
+            if (localStorage.getItem('lastScanDate') !== today) {
+                localStorage.removeItem('recentCards'); localStorage.removeItem('attHistory');
+                localStorage.setItem('lastScanDate', today); studentCooldowns = {}; 
             }
         }
         checkDailyReset(); 
@@ -189,17 +180,25 @@
             faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
         ]).then(() => { 
             document.getElementById('status-text').innerText = "⚡ AI Vision Online.";
-            buildFaceMatcher(); 
-            renderRecentScans(); 
+            buildFaceMatcher(); renderRecentScans(); 
         });
 
         function buildFaceMatcher() {
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
             const labeledDescriptors = [];
+            
             for (let id in localData) {
                 if (localData[id].face) {
-                    const descArray = new Float32Array(JSON.parse(localData[id].face));
-                    labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(id, [descArray]));
+                    try {
+                        const parsedData = JSON.parse(localData[id].face);
+                        let descriptorList = [];
+                        if (Array.isArray(parsedData) && Array.isArray(parsedData[0])) {
+                            descriptorList = parsedData.map(arr => new Float32Array(arr)); 
+                        } else {
+                            descriptorList = [new Float32Array(parsedData)]; 
+                        }
+                        labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(id, descriptorList));
+                    } catch (e) { console.error("Could not parse face data for", id); }
                 }
             }
             if(labeledDescriptors.length > 0) faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); 
@@ -208,15 +207,13 @@
         function syncData() {
             Swal.fire({ title: 'Syncing...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             const formData = new FormData(); formData.append('action', 'sync');
-            fetch(SCRIPT_URL, { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        localStorage.setItem('localStudents', JSON.stringify(data.students));
-                        buildFaceMatcher(); 
-                        Swal.fire({ icon: 'success', title: 'Synced!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
-                    }
-                });
+            fetch(SCRIPT_URL, { method: 'POST', body: formData }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    localStorage.setItem('localStudents', JSON.stringify(data.students));
+                    buildFaceMatcher(); 
+                    Swal.fire({ icon: 'success', title: 'Synced!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+                }
+            });
         }
 
         function setMode(mode) {
@@ -226,30 +223,20 @@
             const canvas = document.getElementById('face-canvas');
             
             if(mode === 'qr') {
-                isTracking = false;
-                document.getElementById('face-video').style.display = 'none';
-                canvas.style.display = 'none';
-                document.getElementById('reader').style.display = 'block';
-                document.getElementById('status-text').innerText = "Ready to scan QR Codes";
+                isTracking = false; document.getElementById('face-video').style.display = 'none'; canvas.style.display = 'none';
+                document.getElementById('reader').style.display = 'block'; document.getElementById('status-text').innerText = "Ready to scan QR Codes";
                 html5QrcodeScanner.resume();
             } else {
-                document.getElementById('reader').style.display = 'none';
-                document.getElementById('face-video').style.display = 'block';
-                canvas.style.display = 'block';
-                html5QrcodeScanner.pause();
-                startFaceScanner();
+                document.getElementById('reader').style.display = 'none'; document.getElementById('face-video').style.display = 'block'; canvas.style.display = 'block';
+                html5QrcodeScanner.pause(); startFaceScanner();
             }
         }
 
         async function startFaceScanner() {
-            if(!faceMatcher) {
-                Swal.fire('No Faces Registered', 'Please add student photos in the Admin Dashboard first.', 'warning');
-                setMode('qr'); return;
-            }
+            if(!faceMatcher) { Swal.fire('No Faces Registered', 'Please sync database.', 'warning'); setMode('qr'); return; }
             const video = document.getElementById('face-video');
             navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { 
-                video.srcObject = stream; 
-                isTracking = true;
+                video.srcObject = stream; isTracking = true;
                 video.onplay = () => requestAnimationFrame(trackFaces);
             });
             document.getElementById('status-text').innerText = "AI Tracking Active...";
@@ -260,83 +247,55 @@
             
             const video = document.getElementById('face-video');
             const canvas = document.getElementById('face-canvas');
-            
-            // Uses actual video resolution to guarantee boxes map perfectly
             const displaySize = { width: video.videoWidth, height: video.videoHeight };
             
             if (displaySize.width > 0) {
-                if (canvas.width !== displaySize.width) {
-                    faceapi.matchDimensions(canvas, displaySize);
-                }
+                if (canvas.width !== displaySize.width) faceapi.matchDimensions(canvas, displaySize);
                 
-                // Lowered scoreThreshold from 0.5 to 0.4 so it detects faces easier in lower light
                 const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
                     .withFaceLandmarks().withFaceDescriptors();
                 
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+                const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height);
                 let faceFound = false;
 
                 resizedDetections.forEach(detection => {
                     faceFound = true;
                     const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
                     const box = detection.detection.box;
-                    
                     const isKnown = bestMatch.label !== 'unknown';
-                    const color = isKnown ? '#10B981' : '#EF4444'; // Green or Red
+                    const color = isKnown ? '#10B981' : '#EF4444';
                     
-                    // Draw Box
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = 4;
-                    ctx.beginPath();
-                    ctx.roundRect(box.x, box.y, box.width, box.height, 10);
-                    ctx.stroke();
+                    ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.beginPath();
+                    ctx.roundRect(box.x, box.y, box.width, box.height, 10); ctx.stroke();
 
-                    // Draw Label Nameplate
                     const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
                     const text = isKnown ? (localData[bestMatch.label]?.name || bestMatch.label) : 'Unknown';
                     
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.roundRect(box.x, box.y - 32, ctx.measureText(text).width + 20, 30, 6);
-                    ctx.fill();
-                    
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 18px sans-serif';
-                    ctx.fillText(text, box.x + 10, box.y - 10);
+                    ctx.fillStyle = color; ctx.beginPath();
+                    ctx.roundRect(box.x, box.y - 32, ctx.measureText(text).width + 20, 30, 6); ctx.fill();
+                    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(text, box.x + 10, box.y - 10);
 
-                    if (isKnown) {
-                        processAttendance(bestMatch.label);
-                    }
+                    if (isKnown) processAttendance(bestMatch.label);
                 });
 
-                if(faceFound && document.getElementById('result-card').style.display !== 'flex') {
-                    document.getElementById('status-text').innerText = "Scanning targets...";
-                } else if (document.getElementById('result-card').style.display !== 'flex') {
-                    document.getElementById('status-text').innerText = "AI Tracking Active...";
-                }
+                if(faceFound && document.getElementById('result-card').style.display !== 'flex') document.getElementById('status-text').innerText = "Scanning targets...";
+                else if (document.getElementById('result-card').style.display !== 'flex') document.getElementById('status-text').innerText = "AI Tracking Active...";
             }
-            
             requestAnimationFrame(trackFaces); 
         }
 
         function processAttendance(studentId) {
-            const nowTime = new Date().getTime();
-            const FIVE_MINUTES = 5 * 60 * 1000;
-
+            const nowTime = new Date().getTime(); const FIVE_MINUTES = 5 * 60 * 1000;
             if (studentCooldowns[studentId] && (nowTime - studentCooldowns[studentId] < FIVE_MINUTES)) {
                 if (currentMode === 'qr' && !isCooldown) {
                     Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: `Wait 5 minutes.`, showConfirmButton: false, timer: 2000 });
-                    isCooldown = true;
-                    setTimeout(() => { isCooldown = false; }, 2000);
+                    isCooldown = true; setTimeout(() => { isCooldown = false; }, 2000);
                 }
                 return; 
             }
 
-            if (isCooldown) return;
-            isCooldown = true;
+            if (isCooldown) return; isCooldown = true;
             if(currentMode === 'qr') html5QrcodeScanner.pause();
 
             const localData = JSON.parse(localStorage.getItem('localStudents') || '{}');
@@ -344,56 +303,51 @@
 
             if (student) {
                 studentCooldowns[studentId] = nowTime; 
-
                 if (displayTimeout) clearTimeout(displayTimeout);
 
+                // --- APPLY SLIDE-IN ANIMATION ---
                 const card = document.getElementById('result-card');
-                card.classList.remove('pop-in'); void card.offsetWidth; card.classList.add('pop-in');
+                card.classList.remove('slide-to-grid', 'slide-in'); 
+                void card.offsetWidth; // Force CSS reflow
+                card.classList.add('slide-in');
                 card.style.display = 'flex'; 
 
-                const now = new Date();
-                const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+                const now = new Date(); const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const history = JSON.parse(localStorage.getItem('attHistory') || '{}');
                 let status = history[studentId] === 'Arrived' ? 'Left' : 'Arrived';
-                history[studentId] = status;
-                localStorage.setItem('attHistory', JSON.stringify(history));
+                history[studentId] = status; localStorage.setItem('attHistory', JSON.stringify(history));
 
                 window.speechSynthesis.cancel();
                 const speech = new SpeechSynthesisUtterance(`${student.name}, ${status}`);
-                if (femaleVoice) speech.voice = femaleVoice;
-                speech.rate = 0.9; speech.pitch = 1.1;
+                if (femaleVoice) speech.voice = femaleVoice; speech.rate = 0.9; speech.pitch = 1.1;
                 window.speechSynthesis.speak(speech);
 
                 const badge = document.getElementById('status-badge');
                 badge.innerText = status === 'Arrived' ? "Time In" : "Time Out";
                 badge.className = status === 'Arrived' ? "status-badge status-in" : "status-badge status-out";
-                
                 document.getElementById('scan-time').innerText = timeString;
-                document.getElementById('student-name').innerText = student.name;
-                document.getElementById('student-photo').src = student.photo;
+                document.getElementById('student-name').innerText = student.name; document.getElementById('student-photo').src = student.photo;
 
                 let recentCards = JSON.parse(localStorage.getItem('recentCards') || '[]');
                 recentCards.unshift({ name: student.name, photo: student.photo, status: status, time: timeString });
-                localStorage.setItem('recentCards', JSON.stringify(recentCards));
-                renderRecentScans();
+                localStorage.setItem('recentCards', JSON.stringify(recentCards)); renderRecentScans();
 
-                const logData = new FormData();
-                logData.append('action', 'log');
-                logData.append('id', studentId);
-                logData.append('name', student.name);
-                logData.append('email', student.email || ""); 
+                const logData = new FormData(); logData.append('action', 'log'); logData.append('id', studentId);
+                logData.append('name', student.name); logData.append('email', student.email || ""); 
                 fetch(SCRIPT_URL, { method: 'POST', body: logData });
 
                 document.getElementById('status-text').innerText = `✅ ${student.name} Logged!`;
 
-                setTimeout(() => { 
-                    if(currentMode==='qr') html5QrcodeScanner.resume(); 
-                    isCooldown = false; 
-                }, 2000); 
+                setTimeout(() => { if(currentMode==='qr') html5QrcodeScanner.resume(); isCooldown = false; }, 2000); 
                 
-                // REDUCED TIMEOUT: Overlay clears after exactly 10 seconds (10,000 ms)
-                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 10000); 
+                // --- 5 SECOND TIMEOUT & SLIDE-DOWN EXIT ---
+                displayTimeout = setTimeout(() => { 
+                    card.classList.remove('slide-in');
+                    card.classList.add('slide-to-grid'); 
+                    
+                    // Wait for the exit animation to finish before hiding it completely
+                    setTimeout(() => { card.style.display = 'none'; }, 450);
+                }, 5000); 
 
             } else {
                 Swal.fire({ icon: 'error', title: 'Invalid ID', text: `ID ${studentId} not found.`, timer: 2000, showConfirmButton: false });
@@ -402,22 +356,22 @@
         }
 
         function renderRecentScans() {
-            const grid = document.getElementById('recent-grid');
-            grid.innerHTML = '';
+            const grid = document.getElementById('recent-grid'); grid.innerHTML = '';
             const recentCards = JSON.parse(localStorage.getItem('recentCards') || '[]');
-            
             document.getElementById('scan-count').innerText = `${recentCards.length} Scans`;
 
-            recentCards.forEach(scan => {
+            recentCards.forEach((scan, index) => {
                 const badgeClass = scan.status === 'Arrived' ? 'mini-in' : 'mini-out';
+                // Only animate the very first card in the array (the newest one)
+                const animClass = index === 0 ? 'new-mini-card' : ''; 
+                
                 grid.innerHTML += `
-                    <div class="mini-card">
+                    <div class="mini-card ${animClass}">
                         <img src="${scan.photo}">
                         <div class="mini-name">${scan.name}</div>
                         <div class="mini-time">${scan.time}</div>
                         <div class="mini-status ${badgeClass}">${scan.status}</div>
-                    </div>
-                `;
+                    </div>`;
             });
         }
         
