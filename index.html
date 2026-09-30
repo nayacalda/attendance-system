@@ -9,7 +9,7 @@
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* --- MODERN UI VARIABLES & RESET --- */
+        /* --- MODERN UI VARIABLES --- */
         :root {
             --bg-color: #F3F4F6;
             --card-bg: #FFFFFF;
@@ -45,7 +45,7 @@
         .mode-btn { background: transparent; color: var(--text-muted); border: none; padding: 10px 24px; border-radius: 26px; cursor: pointer; font-size: 15px; font-weight: 600; transition: 0.3s; }
         .mode-btn.active { background: var(--card-bg); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-        /* --- CAMERA & OVERLAY TRACKING WRAPPER --- */
+        /* --- CAMERA WRAPPER --- */
         .scanner-wrapper {
             position: relative; width: 100%; max-width: 600px; margin: 0 auto;
             border-radius: var(--radius-lg); overflow: hidden; background: #000;
@@ -54,10 +54,15 @@
         }
         
         #reader { width: 100%; }
-        #face-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); /* Mirror camera */ }
         
-        /* The Canvas where AI draws the squares */
-        #face-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); z-index: 10; pointer-events: none; }
+        /* ALIGNMENT FIX: Both video and canvas must have identical positioning and object-fit */
+        #face-video, #face-canvas { 
+            position: absolute; top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            object-fit: cover; /* Forces them to stretch identically */
+            transform: scaleX(-1); /* Mirrors the image */
+        }
+        #face-canvas { z-index: 10; pointer-events: none; }
 
         /* --- GLASSMORPHISM RESULT CARD --- */
         #result-card { 
@@ -102,7 +107,7 @@
         .mini-in { background: var(--success); }
         .mini-out { background: var(--danger); }
         
-        .admin-link { position: fixed; bottom: 20px; right: 20px; background: var(--card-bg); color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600; padding: 10px 15px; border-radius: 20px; box-shadow: var(--shadow-soft); transition: 0.2s; }
+        .admin-link { position: fixed; bottom: 20px; right: 20px; background: var(--card-bg); color: var(--text-main); text-decoration: none; font-size: 14px; font-weight: 600; padding: 10px 15px; border-radius: 20px; box-shadow: var(--shadow-soft); transition: 0.2s; z-index: 100; }
         .admin-link:hover { background: #E5E7EB; }
     </style>
 </head>
@@ -123,7 +128,6 @@
             <div id="reader"></div>
             
             <video id="face-video" autoplay muted playsinline style="display:none;"></video>
-            <!-- NEW: Transparent canvas for drawing boxes -->
             <canvas id="face-canvas"></canvas>
             
             <div id="result-card">
@@ -159,31 +163,28 @@
         let isTracking = false; 
         let studentCooldowns = {}; 
 
-        // --- NEW: DAILY RESET LOGIC ---
+        // --- DAILY RESET LOGIC ---
         function checkDailyReset() {
             const today = new Date().toDateString();
             const lastDate = localStorage.getItem('lastScanDate');
             if (lastDate !== today) {
-                // It's a new day! Clear the lists.
                 localStorage.removeItem('recentCards');
                 localStorage.removeItem('attHistory');
                 localStorage.setItem('lastScanDate', today);
-                studentCooldowns = {}; // Reset cooldowns too
+                studentCooldowns = {}; 
             }
         }
-        checkDailyReset(); // Run immediately on load
+        checkDailyReset(); 
 
-        // Voice Setup
         let femaleVoice = null;
         window.speechSynthesis.onvoiceschanged = () => {
             const voices = window.speechSynthesis.getVoices();
             femaleVoice = voices.find(v => v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Jenny')) || voices.find(v => v.lang.startsWith('en-'));
         };
 
-        // --- OPTIMIZATION: Use TinyFaceDetector for high-FPS multi-tracking ---
         const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
         Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), // Swapped to Tiny!
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
             faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
             faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
         ]).then(() => { 
@@ -201,7 +202,7 @@
                     labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(id, [descArray]));
                 }
             }
-            if(labeledDescriptors.length > 0) faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // Stricter match for multi-face
+            if(labeledDescriptors.length > 0) faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); 
         }
 
         function syncData() {
@@ -249,25 +250,27 @@
             navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { 
                 video.srcObject = stream; 
                 isTracking = true;
-                // Wait for video to be fully ready before starting tracker loop
                 video.onplay = () => requestAnimationFrame(trackFaces);
             });
             document.getElementById('status-text').innerText = "AI Tracking Active...";
         }
 
-        // --- NEW: HIGH-PERFORMANCE MULTI-FACE TRACKING LOOP ---
         async function trackFaces() {
             if (!isTracking || currentMode !== 'face') return;
             
             const video = document.getElementById('face-video');
             const canvas = document.getElementById('face-canvas');
-            const displaySize = { width: video.clientWidth, height: video.clientHeight };
+            
+            // Uses actual video resolution to guarantee boxes map perfectly
+            const displaySize = { width: video.videoWidth, height: video.videoHeight };
             
             if (displaySize.width > 0) {
-                faceapi.matchDimensions(canvas, displaySize);
+                if (canvas.width !== displaySize.width) {
+                    faceapi.matchDimensions(canvas, displaySize);
+                }
                 
-                // Detect ALL faces using the optimized TinyFaceDetector
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+                // Lowered scoreThreshold from 0.5 to 0.4 so it detects faces easier in lower light
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
                     .withFaceLandmarks().withFaceDescriptors();
                 
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
@@ -284,9 +287,9 @@
                     const isKnown = bestMatch.label !== 'unknown';
                     const color = isKnown ? '#10B981' : '#EF4444'; // Green or Red
                     
-                    // Draw clean modern box
+                    // Draw Box
                     ctx.strokeStyle = color;
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = 4;
                     ctx.beginPath();
                     ctx.roundRect(box.x, box.y, box.width, box.height, 10);
                     ctx.stroke();
@@ -301,10 +304,9 @@
                     ctx.fill();
                     
                     ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 16px sans-serif';
-                    ctx.fillText(text, box.x + 10, box.y - 11);
+                    ctx.font = 'bold 18px sans-serif';
+                    ctx.fillText(text, box.x + 10, box.y - 10);
 
-                    // Only trigger attendance if it's a known person
                     if (isKnown) {
                         processAttendance(bestMatch.label);
                     }
@@ -317,7 +319,6 @@
                 }
             }
             
-            // Loop as fast as the browser can comfortably render
             requestAnimationFrame(trackFaces); 
         }
 
@@ -331,7 +332,7 @@
                     isCooldown = true;
                     setTimeout(() => { isCooldown = false; }, 2000);
                 }
-                return; // Silently drop frame for faces on cooldown
+                return; 
             }
 
             if (isCooldown) return;
@@ -342,13 +343,13 @@
             const student = localData[studentId];
 
             if (student) {
-                studentCooldowns[studentId] = nowTime; // Mark Cooldown
+                studentCooldowns[studentId] = nowTime; 
 
                 if (displayTimeout) clearTimeout(displayTimeout);
 
                 const card = document.getElementById('result-card');
                 card.classList.remove('pop-in'); void card.offsetWidth; card.classList.add('pop-in');
-                card.style.display = 'flex'; // Triggers frosted glass overlay
+                card.style.display = 'flex'; 
 
                 const now = new Date();
                 const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -391,8 +392,8 @@
                     isCooldown = false; 
                 }, 2000); 
                 
-                // Clear overlay after 5 minutes
-                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 300000); 
+                // REDUCED TIMEOUT: Overlay clears after exactly 10 seconds (10,000 ms)
+                displayTimeout = setTimeout(() => { card.style.display = 'none'; }, 10000); 
 
             } else {
                 Swal.fire({ icon: 'error', title: 'Invalid ID', text: `ID ${studentId} not found.`, timer: 2000, showConfirmButton: false });
